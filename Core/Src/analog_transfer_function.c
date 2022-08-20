@@ -35,22 +35,23 @@ static const float max_adc_value=4096.0;
   * 		rounding down
   */
 uint8_t APPS1_transfer_function(uint32_t reading){
+	//4.50
 	/*The transformation from stepped ratio to voltage is
-	 * reading = y=adc_max_value*(5000x)/(5000x+((5000(1-x)+200)*3900)/((5000*(1-x)+200)+3900))
+	 * reading = y=adc_max_value*(4500x)/(4500x+((4500(1-x)+997)*3900)/((4500*(1-x)+997)+3900))
 	 * where x is the ratio of the pressed displacement and the max displacement of the sensor
 	 * the inverse for the desired domain and range is
-	 * (13 (7 a - 4 x))/(100 (a - x)) - (13 sqrt(49 a^2 - 104 a x + 64 x^2))/(100 (a - x)),
+	 * (9397*a-5497*x)/(9000*(a-x))-sqrt(88303609*a*a-189063818*a*x+115970209*x*x)/(9000*(a-x)),
 	 * where a is max_adc_value
 	 * However, since we only use 2.5~39.5mm part of the domain instead of the full 0~50, we have
 	 * to scale the number to fit the proportions as well
 	 *
-	 * Note: the equation is based on the rated values, actual resistance needs to be measured.
+	 * Note: 39.5mm corresponds to 0% pedal, and 2.5mm corresponds to 100% pedal travel.
 	 * */
 	float value;
 	float x = (float)reading;
 	float a = max_adc_value;
-	value = (13*(7*a - 4*x))/(100*(a - x)) - (13*sqrt(49*a*a - 104*a*x + 64*x*x))/(100*(a - x));
-	value = (value-2.5/50) * (50)/(37);
+	value = (9397*a-5497*x)/(9000*(a-x))-sqrt(88303609*a*a-189063818*a*x+115970209*x*x)/(9000*(a-x));
+	value = (value-(50-39.5)/50) * (50)/(37);
 	value = value*254;
 	/*snapping everything out of bounds to designated values*/
 	value+=1;
@@ -66,21 +67,22 @@ uint8_t APPS1_transfer_function(uint32_t reading){
   * 		rounding down.
   */
 uint8_t APPS2_transfer_function(uint32_t reading){
+	//5.10k
 	/*The transformation from stepped ratio to voltage is
-	 * reading = ADC_MAX_VALUE*(5000x)/(5000x+((5000(1-x)+1000)*3900)/((5000*(1-x)+1000)+3900))
+	 * reading = y = ADC_MAX_VALUE*(5100x)/(5100x+((5100(1-x)+200)*3890)/((5100*(1-x)+200)+3890))
 	 * where x is the ratio of the pressed displacement and the max displacement of the sensor
 	 * the inverse for the desired domain and range is
-	 * (3 (33 a - 20 x))/(100 (a - x)) - (3 sqrt(1089 a^2 - 2360 a x + 1440 x^2))/(100 (a - x)) (a being max_adc_value)
+	 * (919 a - 530 x)/(1020 (a - x)) ± sqrt(844561 a^2 - 1798820 a x + 1105580 x^2)/(1020 (a - x)) (a being max_adc_value)
 	 * However, since we only use 2.5~39.5mm part of the domain instead of the full 0~50, we have
 	 * to scale the number to fit the proportions as well
 	 *
-	 * Note: the equation is based on the rated values, actual resistance needs to be measured.
+	 * Note: 39.5mm corresponds to 0% pedal, and 2.5mm corresponds to 100% pedal travel.
 	 * */
 	float value;
 	float x = (float)reading;
 	float a = max_adc_value;
-	value = (3*(33*a - 20*x))/(100*(a - x)) - (3*sqrt(1089*a*a - 2360*a*x + 1440*x*x))/(100*(a - x));
-	value = (value-2.5/50) * (50)/(37);
+	value = (919*a - 530*x)/(1020*(a - x)) - sqrt(844561*a*a - 1798820*a*x + 1105580*x*x)/(1020*(a - x));
+	value = (value-(50-39.5)/50) * (50)/(37);
 	value = value*254;
 	/*snapping everything out of bounds to designated values*/
 	value+=1;
@@ -97,21 +99,21 @@ uint8_t APPS2_transfer_function(uint32_t reading){
   */
 uint8_t BSE_transfer_function(uint32_t reading){
 	/*The transformation from stepped ratio to voltage is
-	 * reading = y=adc_max_value*(5000x)/(5000x+((5000(1-x)+200)*3900)/((5000*(1-x)+200)+3900))
+	 * reading = y=a*(1624x)/(1624x+((1624(1-x))*3950)/((1624*(1-x))+3950))
 	 * where x is the ratio of the pressed displacement and the max displacement of the sensor
 	 * the inverse for the desired domain and range is
-	 * (13 (7 a - 4 x))/(100 (a - x)) - (13 sqrt(49 a^2 - 104 a x + 64 x^2))/(100 (a - x)) (a being max_adc_value)
-	 * However, since we only use 27.5~49.5mm part of the domain instead of the full 0~50, we have
+	 *(sqrt{(7767369a^{2}-10940888ax+7074144x^{2})}-2787a+812x)/(2(812x-812a)) (a being max_adc_value)
+	 * However, since we only use 2.5~24.5mm part of the domain instead of the full 0~25, we have
 	 * to scale the number to fit the proportions as well
 	 *
-	 * Note: the equation is based on the rated values, actual resistance needs to be measured.
+	 * Note: 24.5mm corresponds to 0% pedal, and 2.5mm corresponds to 100% pedal travel.
 	 * */
 	float value;
 	float x=(float)reading;
 	float a = max_adc_value;
-	value = (13*(7*a - 4*x))/(100*(a - x)) - (13*sqrt(49*a*a - 104*a*x + 64*x*x))/(100*(a - x));
-	value = (value-27.5/50) * (50)/(22);
-	value = value*254;
+	value = (sqrt(7767369*a*a - 10940888*a*x + 7074144*x*x) - 2787*a + 812*x)/(2*(812*x - 812*a));
+	value = (value-(50-24.5)/25) * (25)/(24.5-2.5);
+	value *= 254;
 	/*snapping everything out of bounds to designated values*/
 	value+=1;
 	if(value<1)			{return 0;}

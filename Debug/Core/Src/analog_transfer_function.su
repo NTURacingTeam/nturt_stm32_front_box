@@ -1,5 +1,5 @@
 ../Core/Src/analog_transfer_function.c:37:9:APPS1_transfer_function	56	static
-../Core/Src/analog_transfer_function.c:68:9:APPS2_transfer_function	56	static
-../Core/Src/analog_transfer_function.c:98:9:BSE_transfer_function	56	static
-../Core/Src/analog_transfer_function.c:122:9:oil_pressure_transfer_function	24	static
-../Core/Src/analog_transfer_function.c:128:9:suspension_travel_transfer_function	24	static
+../Core/Src/analog_transfer_function.c:69:9:APPS2_transfer_function	56	static
+../Core/Src/analog_transfer_function.c:100:9:BSE_transfer_function	48	static
+../Core/Src/analog_transfer_function.c:124:9:oil_pressure_transfer_function	24	static
+../Core/Src/analog_transfer_function.c:130:9:suspension_travel_transfer_function	24	static
