@@ -120,6 +120,13 @@ static int hall_counter_result[NUMBER_OF_HALL_SENSORS]={0};
 
 
 /*CAN required custom variables*/
+CAN_TxHeaderTypeDef TxHeader1={
+		.IDE = CAN_ID_EXT,
+		.ExtId = 0x080AD091,
+		.RTR = CAN_RTR_DATA,
+		.DLC = 8,
+		.TransmitGlobalTime = DISABLE
+};
 CAN_TxHeaderTypeDef TxHeader2={
 		.IDE = CAN_ID_EXT,
 		.ExtId = 0x080AD092,
@@ -127,8 +134,10 @@ CAN_TxHeaderTypeDef TxHeader2={
 		.DLC = 8,
 		.TransmitGlobalTime = DISABLE
 };
-uint8_t CAN_TxData[8]={0};
-uint32_t TxMailbox;
+uint8_t CAN_TxData_1[8]={0};
+uint8_t CAN_TxData_2[8]={0};
+uint32_t TxMailbox2;
+uint32_t TxMailbox1;
 CAN_RxHeaderTypeDef RxHeader;
 uint8_t CAN_RxData[4]={0};
 
@@ -147,7 +156,7 @@ void user_main(){
 	 /*timer3 interrupt mode start, used in hall sensors calculations*/
 	 HAL_TIM_Base_Start_IT(&htim3);
 
-	/*CAN receive filter configuration*/
+	/*CAN receive filter configuration "for testing purposes"*/
 	  CAN_FilterTypeDef canfilterconfig = {
 			  .FilterActivation = CAN_FILTER_ENABLE,
 			  .SlaveStartFilterBank = 0,	// how many filters to assign to the CAN1 (master can)
@@ -186,8 +195,8 @@ void user_main(){
 		  uint8_t BSEValue=BSE_transfer_function(BSEtest);
 
 		  /*wheel speed output , assuming there is only one tooth per revolution*/
-		/*  int wheel_speedL=hall_counter_result[0]*60;
-		  int wheel_speedR=hall_counter_result[1]*60;*/
+		  int wheel_speedL=hall_counter_result[0]*60;
+		  int wheel_speedR=hall_counter_result[1]*60;
 
 		  /*temp sensor MLX90614 read API and test output*/
 	/*	  float temp=MLX90614_ReadReg(0x5A,0x08,0)*0.02-273.15;
@@ -197,13 +206,28 @@ void user_main(){
 		 // printf("%.2f C \r\n",MLX90614_ReadReg(0x5A,0x08,0)*0.02-273.15);
 		 // printf("%x\r\n",MLX90614_ReadReg(0x5A,0x08,0));
 
-		  /*loading data into message array*/
-		  CAN_TxData[0]=BSEValue;
-		  CAN_TxData[1]=APPS1Value;
-		  CAN_TxData[2]=APPS2Value;
-		  CAN_TxData[7]=(APPSmicro|(BSEmicro<<1)); //bit0 contains APPS switch data, bit1 contains BSE switch data
+		  /*grabbing the suspension travel data*/
+		  uint8_t travel_L = suspension_travel_transfer_function(ADC_value[ADC_DMA_ARRAY_RANK_LTRAVEL]);
+		  uint8_t travel_R = suspension_travel_transfer_function(ADC_value[ADC_DMA_ARRAY_RANK_RTRAVEL]);
+
+		  /*grabbing the oil pressure sensor data*/
+		  uint8_t oil_pressure = oil_pressure_transfer_function(ADC_value[ADC_DMA_ARRAY_RANK_OILPRESSURE]);
+
+		  /*loading data into message arrayTO BE DETERMINED:the format of the wheel speed*/
+		  CAN_TxData_1[0]=(uint8_t)(wheel_speedL>>8);
+		  CAN_TxData_1[1]=(uint8_t)wheel_speedL;
+		  CAN_TxData_1[2]=(uint8_t)(wheel_speedR>>8);
+		  CAN_TxData_1[3]=(uint8_t)wheel_speedR;
+
+		  CAN_TxData_2[0]=BSEValue;
+		  CAN_TxData_2[1]=APPS1Value;
+		  CAN_TxData_2[2]=APPS2Value;
+		  CAN_TxData_2[4]=travel_L;
+		  CAN_TxData_2[5]=travel_R;
+		  CAN_TxData_2[7]=(APPSmicro|(BSEmicro<<1)); //bit0 contains APPS switch data, bit1 contains BSE switch data
 		  /*the CAN transmit HAL API*/
-		  HAL_CAN_AddTxMessage(&hcan,&TxHeader2,CAN_TxData,&TxMailbox);
+		  HAL_CAN_AddTxMessage(&hcan,&TxHeader1,CAN_TxData_1,&TxMailbox1);
+		  HAL_CAN_AddTxMessage(&hcan,&TxHeader2,CAN_TxData_2,&TxMailbox2);
 
 		  if(HAL_CAN_GetError(&hcan)==HAL_CAN_ERROR_BOF){
 			  HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13);
@@ -235,11 +259,15 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN){
 	switch (GPIO_PIN){
 		case GPIO_PIN_5: /*right wheel hall sensor*/
 			hall_counter[1]++;
+#ifdef PRINTF_TEST_OUTPUT
 			printf("EXTI5:%d\n",hall_counter[1]);
+#endif
 			break;
 		case GPIO_PIN_7: /*left wheel hall sensor*/
 			hall_counter[0]++;
+#ifdef PRINTF_TEST_OUTPUT
 			printf("EXTI7:%d\n",hall_counter[0]);
+#endif
 			break;
 		case GPIO_PIN_0:
 			printf("EXTI0\n");

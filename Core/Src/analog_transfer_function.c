@@ -122,13 +122,29 @@ uint8_t BSE_transfer_function(uint32_t reading){
 }
 
 uint8_t oil_pressure_transfer_function(uint32_t reading){
+
+
 	uint8_t value=0;
 
 	return value;
 }
 
+/**
+  * @brief  transfer function for the analog suspension travel on ep4
+  * @param  reading: the raw ADC 12bit number
+  * @retval value: the 8 bit number reperesenting the suspension travel that matches the format on the CAN protocol.
+  */
 uint8_t suspension_travel_transfer_function(uint32_t reading){
-	uint8_t value=0;
 
-	return value;
+	/*The length of the suspension measuring sensor goes from 200~245mm, which corresponds to 5.5~50.5mm extension
+	 * The length of the allowable extension is mapped linearly to 0~255
+	 * that is, the function should be a straight line passing through( 5.5*(4096/75) , 0 ) and (50.5*(4096/75),256)
+	 */
+
+	float value = 0.0;
+	float input = (float)reading;
+	value = (reading-5.5*(max_adc_value/75))*(256/(max_adc_value*(50.5-5.5)/75));
+	if(value>=256){return 255;}
+	else if(value<=0){return 0;}
+	else{(uint8_t)value;}
 }
