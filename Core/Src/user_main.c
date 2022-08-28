@@ -190,17 +190,17 @@ void user_main(){
 		  uint8_t APPSmicro = HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1);
 		  uint8_t BSEmicro = HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0);
 		  /*APPS&BSE value preprocessing*/
-		  uint8_t APPS1Value=APPS1_transfer_function(APPS1test);
-		  uint8_t APPS2Value=APPS2_transfer_function(APPS2test);
-		  uint8_t BSEValue=BSE_transfer_function(BSEtest);
+		  uint8_t APPS1Value = APPS1_transfer_function(APPS1test);
+		  uint8_t APPS2Value = APPS2_transfer_function(APPS2test);
+		  uint8_t BSEValue = BSE_transfer_function(BSEtest);
 
-		  /*wheel speed output , assuming there is only one tooth per revolution*/
-		  int wheel_speedL=hall_counter_result[0]*60;
-		  int wheel_speedR=hall_counter_result[1]*60;
+		  /*wheel speed output*/
+		  uint16_t wheel_speedL = wheel_speed_transfer_function(hall_counter_result[0]);
+		  uint16_t wheel_speedR = wheel_speed_transfer_function(hall_counter_result[1]);
 
 		  /*temp sensor MLX90614 read API and test output*/
-	/*	  float temp=MLX90614_ReadReg(0x5A,0x08,0)*0.02-273.15;
-		  printf("%.2f\r\n",temp);*/
+		 // float temp=MLX90614_ReadReg(0x5A,0x08,0)*0.02-273.15;
+
 		 // printf("%.2f C \r\n",MLX90614_ReadReg(0x5A,0x06,0)*0.02-273.15);
 		 // printf("%.2f C \r\n",MLX90614_ReadReg(0x5A,0x07,0)*0.02-273.15);
 		 // printf("%.2f C \r\n",MLX90614_ReadReg(0x5A,0x08,0)*0.02-273.15);
@@ -213,18 +213,19 @@ void user_main(){
 		  /*grabbing the oil pressure sensor data*/
 		  uint8_t oil_pressure = oil_pressure_transfer_function(ADC_value[ADC_DMA_ARRAY_RANK_OILPRESSURE]);
 
-		  /*loading data into message arrayTO BE DETERMINED:the format of the wheel speed*/
+		  /*loading data into message array*/
 		  CAN_TxData_1[0]=(uint8_t)(wheel_speedL>>8);
-		  CAN_TxData_1[1]=(uint8_t)wheel_speedL;
+		  CAN_TxData_1[1]=(uint8_t)(wheel_speedL & 0x00FF);
 		  CAN_TxData_1[2]=(uint8_t)(wheel_speedR>>8);
-		  CAN_TxData_1[3]=(uint8_t)wheel_speedR;
+		  CAN_TxData_1[3]=(uint8_t)(wheel_speedR & 0x00FF);
 
-		  CAN_TxData_2[0]=BSEValue;
-		  CAN_TxData_2[1]=APPS1Value;
-		  CAN_TxData_2[2]=APPS2Value;
-		  CAN_TxData_2[4]=travel_L;
-		  CAN_TxData_2[5]=travel_R;
-		  CAN_TxData_2[7]=(APPSmicro|(BSEmicro<<1)); //bit0 contains APPS switch data, bit1 contains BSE switch data
+		  CAN_TxData_2[0] = BSEValue;
+		  CAN_TxData_2[1] = APPS1Value;
+		  CAN_TxData_2[2] = APPS2Value;
+		  CAN_TxData_2[4] = travel_L;
+		  CAN_TxData_2[5] = travel_R;
+		  CAN_TxData_2[6] = oil_pressure;
+		  CAN_TxData_2[7] = (APPSmicro|(BSEmicro<<1)); //bit0 contains APPS switch data, bit1 contains BSE switch data
 		  /*the CAN transmit HAL API*/
 		  HAL_CAN_AddTxMessage(&hcan,&TxHeader1,CAN_TxData_1,&TxMailbox1);
 		  HAL_CAN_AddTxMessage(&hcan,&TxHeader2,CAN_TxData_2,&TxMailbox2);
@@ -236,11 +237,13 @@ void user_main(){
 		  /*test printf output*/
 #ifdef PRINTF_TEST_OUTPUT
 		  printf("%ld,%ld,%ld,%ld,%ld,%ld\r\n",ADC_value[0],ADC_value[1],ADC_value[2],APPS1test,APPS2test,BSEtest);
-		  printf("APPS micro: %d\n",APPSmicro);
-		  printf("BSE micro: %d\n",BSEmicro);
-		  printf("APPS1: %d\n",APPS1Value);
-		  printf("APPS2: %d\n",APPS2Value);
-		  printf("BSE: %d\n",BSEValue);
+		  printf("APPS micro: %d\r\n",APPSmicro);
+		  printf("BSE micro: %d\r\n",BSEmicro);
+		  printf("APPS1: %d\r\n",APPS1Value);
+		  printf("APPS2: %d\r\n",APPS2Value);
+		  printf("BSE: %d\r\n",BSEValue);
+		  printf("tire temp L1: %.2f\r\n",temp);
+		  printf("brake oil pressure: %d\r\n",oil_pressure);
 		  printf("left wheel speed is %d rpm\n",wheel_speedL);
 		  printf("right wheel speed is %d rpm\n",wheel_speedR);
 #endif

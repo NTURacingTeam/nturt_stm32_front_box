@@ -26,7 +26,7 @@
 
 /*need to make sure, not quite 4096*/
 static const float max_adc_value=4096.0;
-
+static const float pi = 3.1415927;
 
 /**
   * @brief  transfer function for the analog APPS1 on ep4
@@ -121,12 +121,23 @@ uint8_t BSE_transfer_function(uint32_t reading){
 	else 				{return (uint8_t)value;}
 }
 
+/**
+  * @brief  transfer function for the brake oil pressure sensor on ep4
+  * @param  reading: the raw ADC 12bit number
+  * @retval value: the 8 bit number reperesenting the suspension travel that matches the format on the CAN protocol.
+  */
 uint8_t oil_pressure_transfer_function(uint32_t reading){
+	/*TO BE DETERMINED not sure if it is the correct transfer function
+	 * assume linear transfer:
+	 * sensor outputs 1~5V, which is mapped to 0~5kPar
+	 * 0~5kPar is mapped linearly to 0~255 in the CAN protocol*/
+	float value=0;
+	float input = reading;
+	value = (input - 4096/5)*(255/(4096*(4/5)));
 
-
-	uint8_t value=0;
-
-	return value;
+	if(value>=256)		{return 255;}
+	else if(value<=0)	{return 0;}
+	else				{return (uint8_t)value;}
 }
 
 /**
@@ -144,7 +155,23 @@ uint8_t suspension_travel_transfer_function(uint32_t reading){
 	float value = 0.0;
 	float input = (float)reading;
 	value = (reading-5.5*(max_adc_value/75))*(256/(max_adc_value*(50.5-5.5)/75));
-	if(value>=256){return 255;}
-	else if(value<=0){return 0;}
-	else{(uint8_t)value;}
+
+	if(value>=256)		{return 255;}
+	else if(value<=0)	{return 0;}
+	else				{return (uint8_t)value;}
+}
+
+/**
+  * @brief  transfer function for the hall tachometer on ep4
+  * @param  reading: the number of hall trigger per 10ms, times 256
+  * @retval the wheel speed in rad/s
+  */
+uint8_t wheel_speed_transfer_function(uint32_t reading){
+	/**/
+	float input = reading;
+	const float tooth_per_rev = 1.0; /*	TO BE DETERMINED*/
+	float value = 0.0;
+	value = input *100 /tooth_per_rev *pi *256;
+	return (uint16_t)value;
+
 }

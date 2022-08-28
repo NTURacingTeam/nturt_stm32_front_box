@@ -15,6 +15,6 @@ uint8_t APPS2_transfer_function(uint32_t reading);
 uint8_t BSE_transfer_function(uint32_t reading);
 uint8_t oil_pressure_transfer_function(uint32_t reading);
 uint8_t suspension_travel_transfer_function(uint32_t reading);
-
+uint8_t wheel_speed_transfer_function(uint32_t reading);
 
 #endif /*_ANALOG_TRANSFER_FUNCTION_H*/
