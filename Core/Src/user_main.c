@@ -198,9 +198,11 @@ void user_main(){
 		  uint16_t wheel_speedL = wheel_speed_transfer_function(hall_counter_result[0]);
 		  uint16_t wheel_speedR = wheel_speed_transfer_function(hall_counter_result[1]);
 
-		  /*temp sensor MLX90614 read API and test output*/
-		 // float temp=MLX90614_ReadReg(0x5A,0x08,0)*0.02-273.15;
-
+		  /*temp sensor MLX90614 read API */
+		  uint8_t temp_L1=tire_temp_transfer_function( MLX90614_ReadReg(0x5A,0x08,0) );
+		  //uint8_t temp_L2=tire_temp_transfer_function( MLX90614_ReadReg(0x5B,0x08,0) );
+		  //uint8_t temp_L3=tire_temp_transfer_function( MLX90614_ReadReg(0x5C,0x08,0) );
+		  //uint8_t temp_L4=tire_temp_transfer_function( MLX90614_ReadReg(0x5D,0x08,0) );
 		 // printf("%.2f C \r\n",MLX90614_ReadReg(0x5A,0x06,0)*0.02-273.15);
 		 // printf("%.2f C \r\n",MLX90614_ReadReg(0x5A,0x07,0)*0.02-273.15);
 		 // printf("%.2f C \r\n",MLX90614_ReadReg(0x5A,0x08,0)*0.02-273.15);
@@ -214,10 +216,11 @@ void user_main(){
 		  uint8_t oil_pressure = oil_pressure_transfer_function(ADC_value[ADC_DMA_ARRAY_RANK_OILPRESSURE]);
 
 		  /*loading data into message array*/
-		  CAN_TxData_1[0]=(uint8_t)(wheel_speedL>>8);
-		  CAN_TxData_1[1]=(uint8_t)(wheel_speedL & 0x00FF);
-		  CAN_TxData_1[2]=(uint8_t)(wheel_speedR>>8);
-		  CAN_TxData_1[3]=(uint8_t)(wheel_speedR & 0x00FF);
+		  CAN_TxData_1[0] = (uint8_t)(wheel_speedL>>8);
+		  CAN_TxData_1[1] = (uint8_t)(wheel_speedL & 0x00FF);
+		  CAN_TxData_1[2] = (uint8_t)(wheel_speedR>>8);
+		  CAN_TxData_1[3] = (uint8_t)(wheel_speedR & 0x00FF);
+		  CAN_TxData_1[4] = temp_L1;
 
 		  CAN_TxData_2[0] = BSEValue;
 		  CAN_TxData_2[1] = APPS1Value;
@@ -242,7 +245,7 @@ void user_main(){
 		  printf("APPS1: %d\r\n",APPS1Value);
 		  printf("APPS2: %d\r\n",APPS2Value);
 		  printf("BSE: %d\r\n",BSEValue);
-		  printf("tire temp L1: %.2f\r\n",temp);
+		  printf("tire temp L1: %.2f\r\n",temp_L1/2.0);
 		  printf("brake oil pressure: %d\r\n",oil_pressure);
 		  printf("left wheel speed is %d rpm\n",wheel_speedL);
 		  printf("right wheel speed is %d rpm\n",wheel_speedR);

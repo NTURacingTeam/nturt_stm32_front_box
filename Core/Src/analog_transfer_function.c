@@ -133,7 +133,7 @@ uint8_t oil_pressure_transfer_function(uint32_t reading){
 	 * 0~5kPar is mapped linearly to 0~255 in the CAN protocol*/
 	float value=0;
 	float input = reading;
-	value = (input - 4096/5)*(255/(4096*(4/5)));
+	value = (input - 4096.0/5)*(255 /(4096 *(4.0/5.0) ) );
 
 	if(value>=256)		{return 255;}
 	else if(value<=0)	{return 0;}
@@ -154,7 +154,7 @@ uint8_t suspension_travel_transfer_function(uint32_t reading){
 
 	float value = 0.0;
 	float input = (float)reading;
-	value = (reading-5.5*(max_adc_value/75))*(256/(max_adc_value*(50.5-5.5)/75));
+	value = (input-5.5*(max_adc_value/75))*(256/(max_adc_value*(50.5-5.5)/75));
 
 	if(value>=256)		{return 255;}
 	else if(value<=0)	{return 0;}
@@ -163,10 +163,11 @@ uint8_t suspension_travel_transfer_function(uint32_t reading){
 
 /**
   * @brief  transfer function for the hall tachometer on ep4
-  * @param  reading: the number of hall trigger per 10ms, times 256
-  * @retval the wheel speed in rad/s
+  * @param  reading: the number of hall trigger per 10ms
+  * @retval the wheel speed in rad/s, times 256
+  * @note the result is multiplied by 256 so that the MSB represents the integer part of the number while LSB represents the part less than 1
   */
-uint8_t wheel_speed_transfer_function(uint32_t reading){
+uint16_t wheel_speed_transfer_function(uint32_t reading){
 	/**/
 	float input = reading;
 	const float tooth_per_rev = 1.0; /*	TO BE DETERMINED*/
@@ -174,4 +175,19 @@ uint8_t wheel_speed_transfer_function(uint32_t reading){
 	value = input *100 /tooth_per_rev *pi *256;
 	return (uint16_t)value;
 
+}
+
+/**
+  * @brief  transfer function for the IR tire temperature sensor on ep4
+  * @param  the absolute measured temperature, times 50(the direct output of the MLX90614 sensors)
+  * @retval the tire temperature in degree C, times 2
+  */
+uint8_t tire_temp_transfer_function(uint16_t reading){
+	float value;
+	float input = reading;
+	value = (input/50-273.15)*2;
+
+	if(value>=256)		{return 255;}
+	else if(value<=0)	{return 0;}
+	else				{return (uint8_t)value;}
 }
