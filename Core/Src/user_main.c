@@ -79,12 +79,12 @@
 //#define PRINTF_TEST_OUTPUT
 
 /*private include*/
-#include "user_main.h"
-#include "analog_transfer_function.h"
-#include "MLX.h"
 #include "main.h"
-
 #include <stdio.h>
+#include "user_main.h"
+#include "amt22.h"
+#include "MLX.h"
+#include "analog_transfer_function.h"
 
 /* auto-generated peripheral handler structure by MX.
  * First defined in main.c
@@ -95,6 +95,7 @@ extern ADC_HandleTypeDef hadc1;
 extern DMA_HandleTypeDef hdma_adc1;
 extern CAN_HandleTypeDef hcan;
 extern I2C_HandleTypeDef hi2c1;
+extern SPI_HandleTypeDef hspi2;
 extern TIM_HandleTypeDef htim3;
 extern UART_HandleTypeDef huart1;
 
@@ -199,7 +200,7 @@ void user_main(){
 		  uint16_t wheel_speedR = wheel_speed_transfer_function(hall_counter_result[1]);
 
 		  /*temp sensor MLX90614 read API */
-		  uint8_t temp_L1=tire_temp_transfer_function( MLX90614_ReadReg(0x5A,0x08,0) );
+		  uint8_t temp_L1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5A,0x08,0) );
 		  //uint8_t temp_L2=tire_temp_transfer_function( MLX90614_ReadReg(0x5B,0x08,0) );
 		  //uint8_t temp_L3=tire_temp_transfer_function( MLX90614_ReadReg(0x5C,0x08,0) );
 		  //uint8_t temp_L4=tire_temp_transfer_function( MLX90614_ReadReg(0x5D,0x08,0) );
@@ -215,6 +216,9 @@ void user_main(){
 		  /*grabbing the oil pressure sensor data*/
 		  uint8_t oil_pressure = oil_pressure_transfer_function(ADC_value[ADC_DMA_ARRAY_RANK_OILPRESSURE]);
 
+		  /*grab the absolute encoder data TODO: needs to be tested*/
+		  uint16_t amt22_pos = getPositionSPI(&hspi2, GPIOC, GPIO_PIN_14, 12);
+
 		  /*loading data into message array*/
 		  CAN_TxData_1[0] = (uint8_t)(wheel_speedL>>8);
 		  CAN_TxData_1[1] = (uint8_t)(wheel_speedL & 0x00FF);
@@ -225,6 +229,7 @@ void user_main(){
 		  CAN_TxData_2[0] = BSEValue;
 		  CAN_TxData_2[1] = APPS1Value;
 		  CAN_TxData_2[2] = APPS2Value;
+		  CAN_TxData_2[3] = (uint8_t)(amt22_pos>>4);
 		  CAN_TxData_2[4] = travel_L;
 		  CAN_TxData_2[5] = travel_R;
 		  CAN_TxData_2[6] = oil_pressure;
