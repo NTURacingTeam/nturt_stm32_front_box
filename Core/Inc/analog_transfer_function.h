@@ -10,8 +10,10 @@
 #define _ANALOG_TRANSFER_FUNCTION_H
 #include <stdint.h>
 
-uint8_t APPS1_transfer_function(uint32_t reading);
-uint8_t APPS2_transfer_function(uint32_t reading);
+void APPS_calibration(uint32_t reading);
+float APPS1_conversion(uint32_t reading);
+float APPS2_conversion(uint32_t reading);
+uint8_t APPS_transfer_function(uint32_t reading, uint8_t sensor_number);
 uint8_t BSE_transfer_function(uint32_t reading);
 uint8_t oil_pressure_transfer_function(uint32_t reading);
 uint8_t suspension_travel_transfer_function(uint32_t reading);

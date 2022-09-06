@@ -75,9 +75,6 @@
   @endverbatim
   */
 
-/*to use printf outputs to UART1 to monitor the state of the MCU or not*/
-//#define PRINTF_TEST_OUTPUT
-
 /*private include*/
 #include "main.h"
 #include <stdio.h>
@@ -85,6 +82,17 @@
 #include "amt22.h"
 #include "MLX.h"
 #include "analog_transfer_function.h"
+
+/*to use printf outputs to UART1 to monitor the state of the MCU or not*/
+//#define PRINTF_TEST_OUTPUT
+
+/*to use the live expressions to monitor the states or not*/
+#define USE_LIVE_EXPRESSIONS
+#ifdef USE_LIVE_EXPRESSIONS
+uint8_t live_APPS1_signal;
+uint8_t live_APPS2_signal;
+uint8_t live_BSE_signal;
+#endif
 
 /* auto-generated peripheral handler structure by MX.
  * First defined in main.c
@@ -179,6 +187,8 @@ void user_main(){
 	  }
 	  HAL_CAN_Start(&hcan);
 
+	  APPS_calibration(ADC_value[ADC_DMA_ARRAY_RANK_APPS1]);
+
 	  /*super loop*/
 	  while(1){
 		  /*APPS and BSE raw value obtaining and test output */
@@ -191,8 +201,8 @@ void user_main(){
 		  uint8_t APPSmicro = HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1);
 		  uint8_t BSEmicro = HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0);
 		  /*APPS&BSE value preprocessing*/
-		  uint8_t APPS1Value = APPS1_transfer_function(APPS1test);
-		  uint8_t APPS2Value = APPS2_transfer_function(APPS2test);
+		  uint8_t APPS1Value = APPS_transfer_function(APPS1test,1);
+		  uint8_t APPS2Value = APPS_transfer_function(APPS2test,2);
 		  uint8_t BSEValue = BSE_transfer_function(BSEtest);
 
 		  /*wheel speed output*/
@@ -218,6 +228,12 @@ void user_main(){
 
 		  /*grab the absolute encoder data TODO: needs to be tested*/
 		  uint16_t amt22_pos = getPositionSPI(&hspi2, GPIOC, GPIO_PIN_14, 12);
+
+#ifdef USE_LIVE_EXPRESSIONS
+		  live_APPS1_signal = APPS1Value;
+		  live_APPS2_signal = APPS2Value;
+		  live_BSE_signal = BSEValue;
+#endif
 
 		  /*loading data into message array*/
 		  CAN_TxData_1[0] = (uint8_t)(wheel_speedL>>8);
