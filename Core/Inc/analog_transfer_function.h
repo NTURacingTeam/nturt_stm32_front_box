@@ -10,7 +10,7 @@
 #define _ANALOG_TRANSFER_FUNCTION_H
 #include <stdint.h>
 
-void APPS_calibration(uint32_t reading);
+void APPS_calibration(uint32_t reading,uint8_t sensor_number);
 float APPS1_conversion(uint32_t reading);
 float APPS2_conversion(uint32_t reading);
 uint8_t APPS_transfer_function(uint32_t reading, uint8_t sensor_number);

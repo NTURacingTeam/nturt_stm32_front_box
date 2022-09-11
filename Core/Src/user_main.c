@@ -188,7 +188,8 @@ void user_main(){
 	  HAL_CAN_Start(&hcan);
 	  /*wait until the accel pedal is released, then zero the APPS*/
 	  while(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1));
-	  APPS_calibration(ADC_value[ADC_DMA_ARRAY_RANK_APPS1]);
+	  APPS_calibration(ADC_value[ADC_DMA_ARRAY_RANK_APPS1],1);
+	  APPS_calibration(ADC_value[ADC_DMA_ARRAY_RANK_APPS2],2);
 
 	  /*super loop*/
 	  while(1){

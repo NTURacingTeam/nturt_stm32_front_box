@@ -27,16 +27,25 @@
 /*need to make sure, not quite 4096*/
 static const float max_adc_value=4096.0;
 static const float pi = 3.1415927;
-static int8_t APPS_calibration_value=0;
+static int8_t APPS_calibration_value_1 = 2;
+static int8_t APPS_calibration_value_2 = 2;
 
 /**
   * @brief  calibration function for APPS transfer functions by setting the read value to 0 linearly
   * @param  reading: the raw ADC 12bit number read when the pedal is at rest
   * @retval none
   */
-void APPS_calibration(uint32_t reading){
-	float value = APPS1_conversion(reading);
-	APPS_calibration_value += (int8_t)value+2;
+void APPS_calibration(uint32_t reading, uint8_t sensor_number){
+	float value;
+	if(sensor_number==1){
+		value = APPS1_conversion(reading);
+		APPS_calibration_value_1 += (int8_t)value;
+	}
+	if(sensor_number==2){
+		value = APPS2_conversion(reading);
+		APPS_calibration_value_2 += (int8_t)value;
+	}
+
 	return;
 }
 
@@ -106,15 +115,15 @@ uint8_t APPS_transfer_function(uint32_t reading, uint8_t sensor_number){
 	float value;
 	if(sensor_number!=1&&sensor_number!=2) {return 0;}
 	if(sensor_number==1){
+		/*compensating the values read from the sensors after testing*/
 		value = APPS1_conversion(reading);
+		value -= APPS_calibration_value_1;
 	}
 	else{
+		/*compensating the values read from the sensors after testing*/
 		value = APPS2_conversion(reading);
+		value -= APPS_calibration_value_2;
 	}
-
-	/*compensating the values read from the sensors after testing*/
-	value -= APPS_calibration_value;
-	//value *= (254.0/220.0);
 
 	/*snapping everything out of bounds to designated values*/
 	if(value>=0 && value<254)	{return (uint8_t)value+1;}
