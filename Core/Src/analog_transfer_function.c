@@ -27,7 +27,7 @@
 /*need to make sure, not quite 4096*/
 static const float max_adc_value=4096.0;
 static const float pi = 3.1415927;
-static int8_t calibration=0;
+static int8_t APPS_calibration_value=0;
 
 /**
   * @brief  calibration function for APPS transfer functions by setting the read value to 0 linearly
@@ -36,7 +36,7 @@ static int8_t calibration=0;
   */
 void APPS_calibration(uint32_t reading){
 	float value = APPS1_conversion(reading);
-	calibration += (int8_t)value;
+	APPS_calibration_value += (int8_t)value+2;
 	return;
 }
 
@@ -113,11 +113,11 @@ uint8_t APPS_transfer_function(uint32_t reading, uint8_t sensor_number){
 	}
 
 	/*compensating the values read from the sensors after testing*/
-	value -= calibration;
-	value *= 254.0/220.0;
+	value -= APPS_calibration_value;
+	//value *= (254.0/220.0);
 
 	/*snapping everything out of bounds to designated values*/
-	if(value>=0 || value<254)	{return (uint8_t)value+1;}
+	if(value>=0 && value<254)	{return (uint8_t)value+1;}
 	if(value<0){
 		if(value < -out_of_bounds_tolerance)	{return 0;}
 		else 									{return 1;}
