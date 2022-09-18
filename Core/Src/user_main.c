@@ -247,15 +247,18 @@ void user_main(){
 		  CAN_TxData_2[0] = BSEValue;
 
 		  /*check whether the 2 APPS read different values*/
-		  int deviation = (int)APPS1Value-(int)APPS2Value;
-		  if(deviation <= 25 && deviation >= -25){
-			  CAN_TxData_2[1] = APPS1Value;
-			  CAN_TxData_2[2] = APPS2Value;
+		  if(APPS1Value!=255 && APPS2Value!=255 && APPS1Value!=0 && APPS2Value!=0){
+			  int deviation = (int)APPS1Value-(int)APPS2Value;
+			  if(deviation <= 25 && deviation >= -25){
+				  CAN_TxData_2[1] = APPS1Value;
+				  CAN_TxData_2[2] = APPS2Value;
+			  }
+			  else{
+				  CAN_TxData_2[1] = 0;
+				  CAN_TxData_2[2] = 0;
+			  }
 		  }
-		  else{
-			  CAN_TxData_2[1] = 0;
-			  CAN_TxData_2[2] = 0;
-		  }
+
 		  CAN_TxData_2[3] = (uint8_t)(amt22_pos>>4);
 		  CAN_TxData_2[4] = travel_L;
 		  CAN_TxData_2[5] = travel_R;
