@@ -148,23 +148,33 @@ uint8_t BSE_transfer_function(uint32_t reading){
 	 * reading = y=a*(1624x)/(1624x+((1624(1-x))*3950)/((1624*(1-x))+3950))
 	 * where x is the ratio of the pressed displacement and the max displacement of the sensor
 	 * the inverse for the desired domain and range is
-	 *(sqrt{(7767369a^{2}-10940888ax+7074144x^{2})}-2787a+812x)/(2(812x-812a)) (a being max_adc_value)
+	 *	(sqrt{(7767369a^{2}-10940888ax+7074144x^{2})}-2787a+812x)/(2(812x-812a)) (a being max_adc_value)
 	 * However, since we only use 2.5~24.5mm part of the domain instead of the full 0~25, we have
 	 * to scale the number to fit the proportions as well
 	 *
 	 * Note: 24.5mm corresponds to 0% pedal, and 2.5mm corresponds to 100% pedal travel.
 	 * */
+	const float out_of_bounds_tolerance = 4.0;
 	float value;
 	float x=(float)reading;
 	float a = max_adc_value;
 	value = (sqrt(7767369*a*a - 10940888*a*x + 7074144*x*x) - 2787*a + 812*x)/(2*(812*x - 812*a));
 	value = (value-(25-24.5)/25) * (25)/(24.5-2.5);
 	value *= 254;
+	/*compensating the read value linearly*/
+	value -= 27;
+	value *= 254/185;
+
 	/*snapping everything out of bounds to designated values*/
-	value+=1;
-	if(value<1)			{return 0;}
-	else if(value>=255)	{return 255;}
-	else 				{return (uint8_t)value;}
+	if(value>=0 && value<254)	{return (uint8_t)value+1;}
+	if(value<0){
+		if(value < -out_of_bounds_tolerance)	{return 0;}
+		else 									{return 1;}
+	}
+	else{
+		if(value >= 254.0+out_of_bounds_tolerance) 	{return 255;}
+		else										{return 254;}
+	}
 }
 
 /**
