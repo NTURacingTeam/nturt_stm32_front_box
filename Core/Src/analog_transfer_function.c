@@ -29,13 +29,14 @@ static const float max_adc_value=4096.0;
 static const float pi = 3.1415927;
 static int8_t APPS_calibration_value_1 = 2;
 static int8_t APPS_calibration_value_2 = 2;
+static int8_t BSE_calibration_value = 2;
 
 /**
   * @brief  calibration function for APPS transfer functions by setting the read value to 0 linearly
   * @param  reading: the raw ADC 12bit number read when the pedal is at rest
   * @retval none
   */
-void APPS_calibration(uint32_t reading, uint8_t sensor_number){
+void throttle_sensors_calibration(uint32_t reading, uint8_t sensor_number){
 	float value;
 	if(sensor_number==1){
 		value = APPS1_conversion(reading);
@@ -44,6 +45,10 @@ void APPS_calibration(uint32_t reading, uint8_t sensor_number){
 	if(sensor_number==2){
 		value = APPS2_conversion(reading);
 		APPS_calibration_value_2 += (int8_t)value;
+	}
+	if(sensor_number==0){
+		value = BSE_conversion(reading);
+		BSE_calibration_value += (int8_t)value;
 	}
 
 	return;
@@ -67,6 +72,7 @@ float APPS1_conversion(uint32_t reading){
 		 *
 		 * Note: 39.5mm corresponds to 0% pedal, and 2.5mm corresponds to 100% pedal travel.
 		 * */
+
 		float value;
 		float x = (float)reading;
 		float a = max_adc_value;
@@ -109,20 +115,25 @@ float APPS2_conversion(uint32_t reading){
   * @retval value: the relative ratio for how much pedal travel is being pressed times 254,
   * 		rounding down.
   */
-uint8_t APPS_transfer_function(uint32_t reading, uint8_t sensor_number){
+uint8_t throttle_sensors_transfer_function(uint32_t reading, uint8_t sensor_number){
 	const float out_of_bounds_tolerance = 4.0;
 	/*calculating the theoretical pedal press*/
 	float value;
-	if(sensor_number!=1&&sensor_number!=2) {return 0;}
+	if(sensor_number!=1&&sensor_number!=2&&sensor_number!=0) {return 0;}
 	if(sensor_number==1){
 		/*compensating the values read from the sensors after testing*/
 		value = APPS1_conversion(reading);
 		value -= APPS_calibration_value_1;
 	}
-	else{
+	else if(sensor_number == 2){
 		/*compensating the values read from the sensors after testing*/
 		value = APPS2_conversion(reading);
 		value -= APPS_calibration_value_2;
+	}
+	else{
+		value = BSE_conversion(reading);
+		value -= BSE_calibration_value;
+		value = value*254/185;
 	}
 
 	/*snapping everything out of bounds to designated values*/
@@ -137,13 +148,7 @@ uint8_t APPS_transfer_function(uint32_t reading, uint8_t sensor_number){
 	}
 }
 
-/**
-  * @brief  transfer function for the analog BSE on ep4
-  * @param  reading: the raw ADC 12bit number
-  * @retval value: the relative ratio for how much pedal travel is being pressed times 254,
-  * 		rounding down.
-  */
-uint8_t BSE_transfer_function(uint32_t reading){
+float BSE_conversion(uint32_t reading){
 	/*The transformation from stepped ratio to voltage is
 	 * reading = y=a*(1624x)/(1624x+((1624(1-x))*3950)/((1624*(1-x))+3950))
 	 * where x is the ratio of the pressed displacement and the max displacement of the sensor
@@ -154,28 +159,17 @@ uint8_t BSE_transfer_function(uint32_t reading){
 	 *
 	 * Note: 24.5mm corresponds to 0% pedal, and 2.5mm corresponds to 100% pedal travel.
 	 * */
-	const float out_of_bounds_tolerance = 4.0;
+
 	float value;
 	float x=(float)reading;
 	float a = max_adc_value;
 	value = (sqrt(7767369*a*a - 10940888*a*x + 7074144*x*x) - 2787*a + 812*x)/(2*(812*x - 812*a));
 	value = (value-(25-24.5)/25) * (25)/(24.5-2.5);
 	value *= 254;
-	/*compensating the read value linearly*/
-	value -= 27;
-	value *= 254/185;
-
-	/*snapping everything out of bounds to designated values*/
-	if(value>=0 && value<254)	{return (uint8_t)value+1;}
-	if(value<0){
-		if(value < -out_of_bounds_tolerance)	{return 0;}
-		else 									{return 1;}
-	}
-	else{
-		if(value >= 254.0+out_of_bounds_tolerance) 	{return 255;}
-		else										{return 254;}
-	}
+	return value;
 }
+
+
 
 /**
   * @brief  transfer function for the brake oil pressure sensor on ep4

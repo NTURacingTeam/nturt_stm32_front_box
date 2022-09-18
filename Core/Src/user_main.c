@@ -188,8 +188,9 @@ void user_main(){
 	  HAL_CAN_Start(&hcan);
 	  /*wait until the accel pedal is released, then zero the APPS*/
 	  while(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1));
-	  APPS_calibration(ADC_value[ADC_DMA_ARRAY_RANK_APPS1],1);
-	  APPS_calibration(ADC_value[ADC_DMA_ARRAY_RANK_APPS2],2);
+	  throttle_sensors_calibration(ADC_value[ADC_DMA_ARRAY_RANK_APPS1],1);
+	  throttle_sensors_calibration(ADC_value[ADC_DMA_ARRAY_RANK_APPS2],2);
+	  throttle_sensors_calibration(ADC_value[ADC_DMA_ARRAY_RANK_BSE],0);
 
 	  /*super loop*/
 	  while(1){
@@ -203,9 +204,9 @@ void user_main(){
 		  uint8_t APPSmicro = HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1);
 		  uint8_t BSEmicro = HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0);
 		  /*APPS&BSE value preprocessing*/
-		  uint8_t APPS1Value = APPS_transfer_function(APPS1test,1);
-		  uint8_t APPS2Value = APPS_transfer_function(APPS2test,2);
-		  uint8_t BSEValue = BSE_transfer_function(BSEtest);
+		  uint8_t APPS1Value = throttle_sensors_transfer_function(APPS1test,1);
+		  uint8_t APPS2Value = throttle_sensors_transfer_function(APPS2test,2);
+		  uint8_t BSEValue = throttle_sensors_transfer_function(BSEtest,0);
 
 		  /*wheel speed output*/
 		  uint16_t wheel_speedL = wheel_speed_transfer_function(hall_counter_result[0]);
