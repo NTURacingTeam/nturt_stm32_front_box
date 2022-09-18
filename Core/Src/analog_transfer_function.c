@@ -158,7 +158,7 @@ uint8_t BSE_transfer_function(uint32_t reading){
 	float x=(float)reading;
 	float a = max_adc_value;
 	value = (sqrt(7767369*a*a - 10940888*a*x + 7074144*x*x) - 2787*a + 812*x)/(2*(812*x - 812*a));
-	value = (value-(50-24.5)/25) * (25)/(24.5-2.5);
+	value = (value-(25-24.5)/25) * (25)/(24.5-2.5);
 	value *= 254;
 	/*snapping everything out of bounds to designated values*/
 	value+=1;

@@ -1,4 +1,4 @@
 ../Core/Src/user_main.c:161:6:user_main	88	static
 ../Core/Src/user_main.c:296:6:HAL_GPIO_EXTI_Callback	16	static
-../Core/Src/user_main.c:332:6:HAL_TIM_PeriodElapsedCallback	24	static
-../Core/Src/user_main.c:349:6:HAL_CAN_RxFifo0MsgPendingCallback	16	static
+../Core/Src/user_main.c:333:6:HAL_TIM_PeriodElapsedCallback	24	static
+../Core/Src/user_main.c:350:6:HAL_CAN_RxFifo0MsgPendingCallback	16	static

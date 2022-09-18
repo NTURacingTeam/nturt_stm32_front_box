@@ -2720,7 +2720,7 @@ uint8_t BSE_transfer_function(uint32_t reading){
  8001a86:	f7fe ffff 	bl	8000a88 <__aeabi_d2f>
  8001a8a:	4603      	mov	r3, r0
  8001a8c:	60fb      	str	r3, [r7, #12]
-	value = (value-(50-24.5)/25) * (25)/(24.5-2.5);
+	value = (value-(25-24.5)/25) * (25)/(24.5-2.5);
  8001a8e:	68f8      	ldr	r0, [r7, #12]
  8001a90:	f7fe fcca 	bl	8000428 <__aeabi_f2d>
  8001a94:	a324      	add	r3, pc, #144	; (adr r3, 8001b28 <BSE_transfer_function+0x1b0>)
@@ -2789,8 +2789,8 @@ uint8_t BSE_transfer_function(uint32_t reading){
  8001b20:	46bd      	mov	sp, r7
  8001b22:	bdf0      	pop	{r4, r5, r6, r7, pc}
  8001b24:	f3af 8000 	nop.w
- 8001b28:	851eb852 	.word	0x851eb852
- 8001b2c:	3ff051eb 	.word	0x3ff051eb
+ 8001b28:	47ae147b 	.word	0x47ae147b
+ 8001b2c:	3f947ae1 	.word	0x3f947ae1
  8001b30:	4aed0a92 	.word	0x4aed0a92
  8001b34:	4b26f1d8 	.word	0x4b26f1d8
  8001b38:	4ad7e2c0 	.word	0x4ad7e2c0
@@ -6052,6 +6052,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN){
  8002d92:	f44f 5100 	mov.w	r1, #8192	; 0x2000
  8002d96:	4807      	ldr	r0, [pc, #28]	; (8002db4 <HAL_GPIO_EXTI_Callback+0x84>)
  8002d98:	f001 ff81 	bl	8004c9e <HAL_GPIO_TogglePin>
+
 	return;
  8002d9c:	bf00      	nop
 }
