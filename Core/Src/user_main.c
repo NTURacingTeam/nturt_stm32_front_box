@@ -264,13 +264,18 @@ void user_main(){
 		  CAN_TxData_2[0] = BSEValue;
 
 		  /*check whether the 2 APPS read different values*/
-		  if(APPS1Value!=255 && APPS2Value!=255 && APPS1Value!=0 && APPS2Value!=0){
+		  /*if they are out of bounds, throw out of bounds simply*/
+		  if(APPS1Value==255 || APPS2Value==255 || APPS1Value==0 || APPS2Value==0){
+			  CAN_TxData_2[1] = APPS1Value;
+			  CAN_TxData_2[2] = APPS2Value;
+		  }
+		  else{
 			  int deviation = (int)APPS1Value-(int)APPS2Value;
 			  if(deviation <= 25 && deviation >= -25){
 				  CAN_TxData_2[1] = APPS1Value;
 				  CAN_TxData_2[2] = APPS2Value;
 			  }
-			  else{
+			  else{ /*throw deviate error by setting both to 0*/
 				  CAN_TxData_2[1] = 0;
 				  CAN_TxData_2[2] = 0;
 			  }
