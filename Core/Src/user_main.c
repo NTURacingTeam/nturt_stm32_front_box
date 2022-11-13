@@ -87,11 +87,18 @@
 //#define PRINTF_TEST_OUTPUT
 
 /*to use the live expressions to monitor the states or not*/
-#define USE_LIVE_EXPRESSIONS
+//#define USE_LIVE_EXPRESSIONS
 #ifdef USE_LIVE_EXPRESSIONS
 uint8_t live_APPS1_signal;
 uint8_t live_APPS2_signal;
 uint8_t live_BSE_signal;
+uint8_t live_temp;
+uint16_t live_amt;
+uint16_t live_wheel;
+uint32_t t_start_cycle;
+uint32_t t_after_pedal;
+uint32_t t_before_can;
+uint32_t t_after_cycle;
 #endif
 
 /* auto-generated peripheral handler structure by MX.
@@ -194,6 +201,9 @@ void user_main(){
 
 	  /*super loop*/
 	  while(1){
+#ifdef USE_LIVE_EXPRESSIONS
+		  t_start_cycle = HAL_GetTick();
+#endif
 		  /*APPS and BSE raw value obtaining and test output */
 		  uint32_t APPS1test = ADC_value[ADC_DMA_ARRAY_RANK_APPS1];
 		  uint32_t APPS2test = ADC_value[ADC_DMA_ARRAY_RANK_APPS2];
@@ -208,19 +218,19 @@ void user_main(){
 		  uint8_t APPS2Value = throttle_sensors_transfer_function(APPS2test,2);
 		  uint8_t BSEValue = throttle_sensors_transfer_function(BSEtest,0);
 
+#ifdef USE_LIVE_EXPRESSIONS
+		  t_after_pedal = HAL_GetTick();
+#endif
+
 		  /*wheel speed output*/
 		  uint16_t wheel_speedL = wheel_speed_transfer_function(hall_counter_result[0]);
 		  uint16_t wheel_speedR = wheel_speed_transfer_function(hall_counter_result[1]);
 
 		  /*temp sensor MLX90614 read API */
-		  uint8_t temp_L1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5A,0x08,0) );
-		  //uint8_t temp_L2=tire_temp_transfer_function( MLX90614_ReadReg(0x5B,0x08,0) );
-		  //uint8_t temp_L3=tire_temp_transfer_function( MLX90614_ReadReg(0x5C,0x08,0) );
-		  //uint8_t temp_L4=tire_temp_transfer_function( MLX90614_ReadReg(0x5D,0x08,0) );
-		 // printf("%.2f C \r\n",MLX90614_ReadReg(0x5A,0x06,0)*0.02-273.15);
-		 // printf("%.2f C \r\n",MLX90614_ReadReg(0x5A,0x07,0)*0.02-273.15);
-		 // printf("%.2f C \r\n",MLX90614_ReadReg(0x5A,0x08,0)*0.02-273.15);
-		 // printf("%x\r\n",MLX90614_ReadReg(0x5A,0x08,0));
+		  //HAL_StatusTypeDef status = HAL_I2C_IsDeviceReady(&hi2c1,0x5A<<1,2,2);
+		  uint8_t temp_L1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5A,0x07,0) );
+		  uint8_t temp_R1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5C,0x07,0) );
+		  //uint8_t temp_L1 = 7;
 
 		  /*grabbing the suspension travel data*/
 		  uint8_t travel_L = suspension_travel_transfer_function(ADC_value[ADC_DMA_ARRAY_RANK_LTRAVEL]);
@@ -229,13 +239,18 @@ void user_main(){
 		  /*grabbing the oil pressure sensor data*/
 		  uint8_t oil_pressure = oil_pressure_transfer_function(ADC_value[ADC_DMA_ARRAY_RANK_OILPRESSURE]);
 
-		  /*grab the absolute encoder data TODO: needs to be tested*/
-		  uint16_t amt22_pos = getPositionSPI(&hspi2, GPIOC, GPIO_PIN_14, 12);
+		  /*grab the absolute encoder data
+		   * TODO: delays too long. AMT22 only requires 3 microseconds between transfer*/
+		  uint16_t amt22_pos =steering_transfer_function( getPositionSPI(&hspi2, GPIOC, GPIO_PIN_14, 12) );
 
 #ifdef USE_LIVE_EXPRESSIONS
 		  live_APPS1_signal = APPS1Value;
 		  live_APPS2_signal = APPS2Value;
 		  live_BSE_signal = BSEValue;
+		  live_temp = temp_L1/2;
+		  live_amt = amt22_pos;
+		  live_wheel = wheel_speedL;
+		  t_before_can = HAL_GetTick();
 #endif
 
 		  /*loading data into message array*/
@@ -244,6 +259,7 @@ void user_main(){
 		  CAN_TxData_1[2] = (uint8_t)(wheel_speedR>>8);
 		  CAN_TxData_1[3] = (uint8_t)(wheel_speedR & 0x00FF);
 		  CAN_TxData_1[4] = temp_L1;
+		  CAN_TxData_1[6] = temp_R1;
 
 		  CAN_TxData_2[0] = BSEValue;
 
@@ -266,6 +282,7 @@ void user_main(){
 		  CAN_TxData_2[6] = oil_pressure;
 		  CAN_TxData_2[7] = (APPSmicro|(BSEmicro<<1)); //bit0 contains APPS switch data, bit1 contains BSE switch data
 		  /*the CAN transmit HAL API*/
+
 		  HAL_CAN_AddTxMessage(&hcan,&TxHeader1,CAN_TxData_1,&TxMailbox1);
 		  HAL_CAN_AddTxMessage(&hcan,&TxHeader2,CAN_TxData_2,&TxMailbox2);
 
@@ -286,8 +303,13 @@ void user_main(){
 		  printf("left wheel speed is %d rpm\n",wheel_speedL);
 		  printf("right wheel speed is %d rpm\n",wheel_speedR);
 #endif
+
+
 		  /*superloop execution interval*/
-		  HAL_Delay(20);
+		  HAL_Delay(10);
+#ifdef USE_LIVE_EXPRESSIONS
+		  t_after_cycle = HAL_GetTick();
+#endif
 	  }/*while(1)*/
 }
 
@@ -307,6 +329,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN){
 			break;
 		case GPIO_PIN_7: /*left wheel hall sensor*/
 			hall_counter[0]++;
+			//HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13);
 #ifdef PRINTF_TEST_OUTPUT
 			printf("EXTI7:%d\n",hall_counter[0]);
 #endif

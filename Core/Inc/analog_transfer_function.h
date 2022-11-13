@@ -20,5 +20,6 @@ uint8_t oil_pressure_transfer_function(uint32_t reading);
 uint8_t suspension_travel_transfer_function(uint32_t reading);
 uint16_t wheel_speed_transfer_function(uint32_t reading);
 uint8_t tire_temp_transfer_function(uint16_t);
+uint16_t steering_transfer_function(uint16_t reading);
 
 #endif /*_ANALOG_TRANSFER_FUNCTION_H*/

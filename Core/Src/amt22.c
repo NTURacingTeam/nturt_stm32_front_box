@@ -28,12 +28,12 @@ uint8_t spiWriteRead(SPI_HandleTypeDef *hspi, uint8_t sendByte, GPIO_TypeDef* en
   setCSLine(encoderPort, encoderPin , GPIO_PIN_RESET);
 
   //There is a minimum time requirement after CS goes low before data can be clocked out of the encoder.
-  HAL_Delay(3);
+  HAL_Delay(1);
   //send the command and receive response of the slave
   HAL_SPI_TransmitReceive(hspi, &sendByte, &data, 1, 10);
 
   //There is also a minimum time after clocking that CS should remain asserted before we release it
-  HAL_Delay(3);
+  HAL_Delay(1);
   setCSLine(encoderPort, encoderPin, releaseLine); //if releaseLine is high set it high else it stays low
 
   return data;
@@ -48,7 +48,7 @@ uint16_t getPositionSPI(SPI_HandleTypeDef *hspi, GPIO_TypeDef* encoderPort, uint
   currentPosition = spiWriteRead(hspi, AMT22_NOP, encoderPort, encoderPin, 0) << 8;
 
   //this is the time required between bytes as specified in the datasheet.
-  HAL_Delay(3);
+  HAL_Delay(1);
 
   //OR the low byte with the currentPosition variable. release line after second byte
   currentPosition |= spiWriteRead(hspi, AMT22_NOP, encoderPort, encoderPin, 1 );
@@ -78,7 +78,7 @@ void setZeroSPI(SPI_HandleTypeDef *hspi, GPIO_TypeDef* encoderPort, uint16_t enc
   spiWriteRead(&hspi,AMT22_NOP, encoderPort, encoderPin, 0 );
 
   //There is also a minimum time after clocking that CS should remain asserted before we release it
-  HAL_Delay(3);
+  HAL_Delay(1);
 
   spiWriteRead(&hspi, AMT22_ZERO, encoderPort, encoderPin, 1 );
 
@@ -91,7 +91,7 @@ void resetAMT22(SPI_HandleTypeDef *hspi, GPIO_TypeDef* encoderPort, uint16_t enc
   spiWriteRead(&hspi, AMT22_NOP, encoderPort, encoderPin, 0 );
 
   //There is also a minimum time after clocking that CS should remain asserted before we release it
-  HAL_Delay(3);
+  HAL_Delay(1);
 
   spiWriteRead(&hspi, AMT22_RESET, encoderPort, encoderPin, 1 );
 
