@@ -293,11 +293,14 @@ void user_main(){
 		  CAN_TxData_2[7] = (APPSmicro|(BSEmicro<<1)); //bit0 contains APPS switch data, bit1 contains BSE switch data
 		  /*the CAN transmit HAL API*/
 
-		  HAL_CAN_AddTxMessage(&hcan,&TxHeader1,CAN_TxData_1,&TxMailbox1);
-		  HAL_CAN_AddTxMessage(&hcan,&TxHeader2,CAN_TxData_2,&TxMailbox2);
-
-		  if(HAL_CAN_GetError(&hcan)==HAL_CAN_ERROR_BOF){
-			  HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13);
+		  if(HAL_CAN_AddTxMessage(&hcan,&TxHeader1,CAN_TxData_1,&TxMailbox1) != HAL_OK){
+			  CAN_error_handler();
+		  }
+		  if(HAL_CAN_AddTxMessage(&hcan,&TxHeader2,CAN_TxData_2,&TxMailbox2) != HAL_OK){
+			  CAN_error_handler();
+		  }
+		  if(HAL_CAN_GetError(&hcan) != HAL_CAN_ERROR_NONE){
+			  CAN_error_handler();
 		  }
 
 		  /*test printf output*/
@@ -313,8 +316,7 @@ void user_main(){
 		  printf("left wheel speed is %d rpm\n",wheel_speedL);
 		  printf("right wheel speed is %d rpm\n",wheel_speedR);
 #endif
-		  //test for reset
-		  // HAL_NVIC_SystemReset();
+
 		  /*superloop execution interval*/
 		  HAL_Delay(1);
 #ifdef USE_LIVE_EXPRESSIONS
@@ -393,4 +395,16 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
   }
 
    return;
+}
+
+/**
+ * @brief CAN error handler
+ * @param none
+ * @retval none
+ *
+ * This erro handler handles CAN when it returns HAL_error or its status is not error_none
+ * */
+void CAN_error_handler(void){
+	//just fucking resets the system
+	HAL_NVIC_SystemReset();
 }
