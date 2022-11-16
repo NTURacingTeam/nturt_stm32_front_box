@@ -174,16 +174,16 @@ void user_main(){
 
 	/*CAN receive filter configuration "for testing purposes"*/
 	  CAN_FilterTypeDef canfilterconfig = {
-			  .FilterActivation = CAN_FILTER_ENABLE,
-			  .SlaveStartFilterBank = 0,	// how many filters to assign to the CAN1 (master can)
-			  .FilterBank = 7,				// which filter bank to use from the assigned ones
-			  .FilterFIFOAssignment = CAN_FILTER_FIFO0,
-			  .FilterMode = CAN_FILTERMODE_IDMASK,
-			  .FilterScale = CAN_FILTERSCALE_32BIT,
-			  .FilterIdHigh = 0x333<<5,
-			  .FilterIdLow = 0,
-			  .FilterMaskIdHigh = 0x333<<5,
-			  .FilterMaskIdLow = 0x0000
+		  .FilterActivation = CAN_FILTER_ENABLE,
+		  .SlaveStartFilterBank = 0,	// how many filters to assign to the CAN1 (master can)
+		  .FilterBank = 7,				// which filter bank to use from the assigned ones
+		  .FilterFIFOAssignment = CAN_FILTER_FIFO0,
+		  .FilterMode = CAN_FILTERMODE_IDMASK,
+		  .FilterScale = CAN_FILTERSCALE_32BIT,
+		  .FilterIdHigh = 0x333<<5,
+		  .FilterIdLow = 0,
+		  .FilterMaskIdHigh = 0x333<<5,
+		  .FilterMaskIdLow = 0x0000
 	  };
 	  if (HAL_CAN_ConfigFilter(&hcan, &canfilterconfig)!=HAL_OK){
 		  Error_Handler();
@@ -201,8 +201,9 @@ void user_main(){
 
 	  /*super loop*/
 	  while(1){
+
 #ifdef USE_LIVE_EXPRESSIONS
-		  t_start_cycle = HAL_GetTick();
+			  t_start_cycle = HAL_GetTick();
 #endif
 		  /*APPS and BSE raw value obtaining and test output */
 		  uint32_t APPS1test = ADC_value[ADC_DMA_ARRAY_RANK_APPS1];
@@ -229,7 +230,9 @@ void user_main(){
 		  /*temp sensor MLX90614 read API */
 		  //HAL_StatusTypeDef status = HAL_I2C_IsDeviceReady(&hi2c1,0x5A<<1,2,2);
 		  uint8_t temp_L1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5A,0x07,0) );
+		  uint8_t temp_L2 = tire_temp_transfer_function( MLX90614_ReadReg(0x5B,0x07,0) );
 		  uint8_t temp_R1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5C,0x07,0) );
+		  uint8_t temp_R2 = tire_temp_transfer_function( MLX90614_ReadReg(0x5D,0x07,0) );
 		  //uint8_t temp_L1 = 7;
 
 		  /*grabbing the suspension travel data*/
@@ -259,7 +262,9 @@ void user_main(){
 		  CAN_TxData_1[2] = (uint8_t)(wheel_speedR>>8);
 		  CAN_TxData_1[3] = (uint8_t)(wheel_speedR & 0x00FF);
 		  CAN_TxData_1[4] = temp_L1;
+		  CAN_TxData_1[5] = temp_L2;
 		  CAN_TxData_1[6] = temp_R1;
+		  CAN_TxData_1[7] = temp_R2;
 
 		  CAN_TxData_2[0] = BSEValue;
 
@@ -308,10 +313,10 @@ void user_main(){
 		  printf("left wheel speed is %d rpm\n",wheel_speedL);
 		  printf("right wheel speed is %d rpm\n",wheel_speedR);
 #endif
-
-
+		  //test for reset
+		  // HAL_NVIC_SystemReset();
 		  /*superloop execution interval*/
-		  HAL_Delay(10);
+		  HAL_Delay(1);
 #ifdef USE_LIVE_EXPRESSIONS
 		  t_after_cycle = HAL_GetTick();
 #endif
