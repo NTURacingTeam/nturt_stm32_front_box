@@ -219,6 +219,7 @@ void user_main(){
 		  uint8_t APPS2Value = throttle_sensors_transfer_function(APPS2test,2);
 		  uint8_t BSEValue = throttle_sensors_transfer_function(BSEtest,0);
 
+
 #ifdef USE_LIVE_EXPRESSIONS
 		  t_after_pedal = HAL_GetTick();
 #endif
@@ -233,6 +234,11 @@ void user_main(){
 		  uint8_t temp_L2 = tire_temp_transfer_function( MLX90614_ReadReg(0x5B,0x07,0) );
 		  uint8_t temp_R1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5C,0x07,0) );
 		  uint8_t temp_R2 = tire_temp_transfer_function( MLX90614_ReadReg(0x5D,0x07,0) );
+		  if(HAL_I2C_GetError(&hi2c1) == 0x202){
+			  if( I2C_start_error_handler() != HAL_OK){
+				  HAL_NVIC_SystemReset();
+			  }
+		  }
 		  //uint8_t temp_L1 = 7;
 
 		  /*grabbing the suspension travel data*/
@@ -407,4 +413,118 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 void CAN_error_handler(void){
 	//just fucking resets the system
 	HAL_NVIC_SystemReset();
+}
+
+static void User_I2C2_GeneralPurposeOutput_Init(I2C_HandleTypeDef* i2cHandle) {
+	GPIO_InitTypeDef GPIO_InitStruct;
+	if(i2cHandle->Instance==I2C1)
+	{
+		/*   PB10     ------> I2C2_SCL; PB11     ------> I2C2_SDA */
+		GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
+		GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+		HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+	}
+}
+
+
+static void User_I2C2_AlternateFunction_Init(I2C_HandleTypeDef* i2cHandle) {
+	GPIO_InitTypeDef GPIO_InitStruct;
+	if(i2cHandle->Instance==I2C1)
+	{
+		/*   PB10     ------> I2C2_SCL; PB11     ------> I2C2_SDA */
+		GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
+		GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+		HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+	}
+}
+
+
+HAL_StatusTypeDef I2C_start_error_handler(){
+	hi2c1.ErrorCode = HAL_I2C_ERROR_AF;
+	/* 1. Disable the I2C peripheral by clearing the PE bit in I2Cx_CR1 register */
+	__HAL_I2C_DISABLE(&hi2c1);
+	HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6|GPIO_PIN_7);
+
+	/* 2. Configure the SCL and SDA I/Os as General Purpose Output Open-Drain, High level (Write 1 to GPIOx_ODR) */
+	User_I2C2_GeneralPurposeOutput_Init(&hi2c1);
+	HAL_Delay(1);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6 | GPIO_PIN_7, GPIO_PIN_SET);
+	HAL_Delay(1);
+
+	/* 3. Check SCL and SDA High level in GPIOx_IDR */
+	if ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6) != GPIO_PIN_SET)||(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7) != GPIO_PIN_SET))
+	{
+#ifdef I2C_TEST
+		printf("3.PB10=%d, PB11=%d\r\n", HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6), HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7));
+#endif
+		return HAL_ERROR;
+	}
+
+	/* 4. Configure the SDA I/O as General Purpose Output Open-Drain, Low level (Write 0 to GPIOx_ODR).
+	 * 5. Check SDA Low level in GPIOx_IDR.
+	 * 6. Configure the SCL I/O as General Purpose Output Open-Drain, Low level (Write 0 to GPIOx_ODR)
+	 * 7. Check SCL Low level in GPIOx_IDR.
+	 * */
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);
+	HAL_Delay(1);
+	if ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6) != GPIO_PIN_RESET)||(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7) != GPIO_PIN_RESET))
+	{
+#ifdef I2C_TEST
+		printf("4-7.PB10=%d, PB11=%d\r\n", HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6), HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7));
+#endif
+		return HAL_ERROR;
+	}
+
+	/*
+	 * 8. Configure the SCL I/O as General Purpose Output Open-Drain, High level (Write 1 to GPIOx_ODR).
+	 * 9. Check SCL High level in GPIOx_IDR.
+	 * 10. Configure the SDA I/O as General Purpose Output Open-Drain , High level (Write 1 to GPIOx_ODR).
+	 * 11. Check SDA High level in GPIOx_IDR.
+	 */
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_SET);
+	HAL_Delay(1);
+	if ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6) != GPIO_PIN_SET)||(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7) != GPIO_PIN_SET))
+	{
+#ifdef I2C_TEST
+		printf("8-11.PB10=%d, PB11=%d\r\n", HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6), HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7));
+#endif
+		return HAL_ERROR;
+	}
+
+	/* 12. Configure the SCL and SDA I/Os as Alternate function Open-Drain. */
+	HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6|GPIO_PIN_7);
+	User_I2C2_AlternateFunction_Init(&hi2c1);
+
+	/* 13. Set SWRST bit in I2Cx_CR1 register. */
+	hi2c1.Instance->CR1 |=  I2C_CR1_SWRST;
+	HAL_Delay(2);
+	/* 14. Clear SWRST bit in I2Cx_CR1 register. */
+	hi2c1.Instance->CR1 &=  ~I2C_CR1_SWRST;
+	HAL_Delay(2);
+	/* 15. Enable the I2C peripheral by setting the PE bit in I2Cx_CR1 register */
+	hi2c1.Instance = I2C1;
+	hi2c1.Init.ClockSpeed = 50000;
+	hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+	hi2c1.Init.OwnAddress1 = 0;
+	hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+	hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+	hi2c1.Init.OwnAddress2 = 0;
+	hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+	hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+	if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+	{
+	Error_Handler();
+	}
+	__HAL_I2C_ENABLE(&hi2c1);
+	HAL_Delay(2);
+#ifdef I2C_TEST
+	printf("I2CResetBus\r\n");
+#endif
+	hi2c1.ErrorCode = HAL_I2C_ERROR_NONE;
+	hi2c1.State = HAL_I2C_STATE_READY;
+//	hi2c1.PreviousState = I2C_STATE_NONE;
+	hi2c1.Mode = HAL_I2C_MODE_NONE;
+	return HAL_OK;
 }

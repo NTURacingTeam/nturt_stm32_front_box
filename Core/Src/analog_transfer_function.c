@@ -62,10 +62,10 @@ void throttle_sensors_calibration(uint32_t reading, uint8_t sensor_number){
 float APPS1_conversion(uint32_t reading){
 	//4.50
 		/*The transformation from stepped ratio to voltage is
-		 * reading = y=adc_max_value*(4560x)/(4560x+((4560(1-x)+999)*3910)/((4560*(1-x)+999)+3910))
+		 * reading = y=adc_max_value*(5200x)/(5200x+((5200(1-x)+999)*3910)/((5200*(1-x)+999)+3910))
 		 * where x is the ratio of the pressed displacement and the max displacement of the sensor
 		 * the inverse for the desired domain and range is
-		 * (9409*a - 5499*x)/(9000*(a - x)) - sqrt(88529281*a*a - 189484542*a*x + 116243361*x*x)/(9000*(a - x)),
+		 * (10109*a - 6199*x)/(10400*(a - x)) - sqrt(102191881*a*a - 222283742*a*x + 135379961*x*x)/(10400*(a - x));,
 		 * where a is max_adc_value
 		 * However, since we only use 2.5~39.5mm part of the domain instead of the full 0~50, we have
 		 * to scale the number to fit the proportions as well
@@ -76,7 +76,7 @@ float APPS1_conversion(uint32_t reading){
 		float value;
 		float x = (float)reading;
 		float a = max_adc_value;
-		value = (17*(557*a - 327*x))/(9120*(a - x)) - (17*sqrt(310249*a*a - 665118*a*x + 407769*x*x))/(9120*(a - x));
+		value = (10109*a - 6199*x)/(10400*(a - x)) - sqrt(102191881*a*a - 222283742*a*x + 135379961*x*x)/(10400*(a - x));
 		value = (value-(50-39.5)/50) * (50)/(37);
 		value = value*254;
 		return value;
@@ -90,10 +90,10 @@ float APPS1_conversion(uint32_t reading){
 float APPS2_conversion(uint32_t reading){
 	//5.10k
 	/*The transformation from stepped ratio to voltage is
-	 * reading = y = ADC_MAX_VALUE*(5200x)/(5200x+((5200(1-x)+198)*3950)/((5200*(1-x)+198)+3950))
+	 * reading = y = adc_max_value*(4560x)/(4560x+((4560(1-x)+198)*3950)/((4560*(1-x)+198)+3950))
 	 * where x is the ratio of the pressed displacement and the max displacement of the sensor
 	 * the inverse for the desired domain and range is
-	 * (4624*a - 2649*x)/(5100*(a - x)) - sqrt(21381376*a*a - 45425052*a*x + 27944301*x*x)/(5100*(a - x)) (a being max_adc_value)
+	 * (4354*a - 2379*x)/(4560*(a - x)) - sqrt(18957316*a*a - 39510432*a*x + 24453741*x*x)/(4560*(a - x)) (a being max_adc_value)
 	 * However, since we only use 2.5~39.5mm part of the domain instead of the full 0~50, we have
 	 * to scale the number to fit the proportions as well
 	 *
@@ -102,7 +102,7 @@ float APPS2_conversion(uint32_t reading){
 	float value;
 	float x = (float)reading;
 	float a = max_adc_value;
-	value = (4674*a - 2699*x)/(5200*(a - x)) - sqrt(21846276*a*a - 46552352*a*x + 28606701*x*x)/(5200*(a - x));
+	value = (4354*a - 2379*x)/(4560*(a - x)) - sqrt(18957316*a*a - 39510432*a*x + 24453741*x*x)/(4560*(a - x));
 	value = (value-(50-39.5)/50) * (50)/(37);
 	value = value*254;
 	return value;
@@ -117,6 +117,7 @@ float APPS2_conversion(uint32_t reading){
   */
 uint8_t throttle_sensors_transfer_function(uint32_t reading, uint8_t sensor_number){
 	const float out_of_bounds_tolerance = 10.0;
+	const float in_bounds_tolerance = 8.0;
 	float value;
 	if(sensor_number!=1&&sensor_number!=2&&sensor_number!=0) {return 0;}
 	if(sensor_number==1){
@@ -128,16 +129,21 @@ uint8_t throttle_sensors_transfer_function(uint32_t reading, uint8_t sensor_numb
 		/*compensating the values read from the sensors after testing*/
 		value = APPS2_conversion(reading);
 		value -= APPS_calibration_value_2;
+//		value += 10; //compnsating
 	}
 	else{
 		value = BSE_conversion(reading);
 		value -= BSE_calibration_value;
-		value = value*254/185;
+		value = value*254/185; //compensating
 	}
 
 	/*snapping everything out of bounds to designated values*/
-	if(value>=0 && value<254)	{return (uint8_t)value+1;}
-	if(value<0){
+	/*and snapping anything around 0 to 0*/
+	if(value>in_bounds_tolerance && value<254)	{return (uint8_t)value+1-in_bounds_tolerance;}
+	if(value>=0 && value <=in_bounds_tolerance){
+		return 1;
+	}
+	else if(value<0){
 		if(value < -out_of_bounds_tolerance)	{return 0;}
 		else 									{return 1;}
 	}
