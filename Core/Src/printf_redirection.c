@@ -38,6 +38,12 @@ extern UART_HandleTypeDef huart1;
 #endif
 
 PUTCHAR_PROTOTYPE{
-	HAL_UART_Transmit(&huart1,(uint8_t*)&ch, 1, 0xFFFF);
-	return ch;
+	//print to UART
+//	HAL_UART_Transmit(&huart1,(uint8_t*)&ch, 1, 0xFFFF);
+//	return ch;
+
+	//print to SWV
+	// Write character to ITM ch.0
+	 ITM_SendChar(ch);
+	 return(ch);
 }

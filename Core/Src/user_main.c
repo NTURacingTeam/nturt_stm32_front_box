@@ -172,26 +172,26 @@ void user_main(){
 	 /*timer3 interrupt mode start, used in hall sensors calculations*/
 	 HAL_TIM_Base_Start_IT(&htim3);
 
-	/*CAN receive filter configuration "for testing purposes"*/
-	  CAN_FilterTypeDef canfilterconfig = {
-		  .FilterActivation = CAN_FILTER_ENABLE,
-		  .SlaveStartFilterBank = 0,	// how many filters to assign to the CAN1 (master can)
-		  .FilterBank = 7,				// which filter bank to use from the assigned ones
-		  .FilterFIFOAssignment = CAN_FILTER_FIFO0,
-		  .FilterMode = CAN_FILTERMODE_IDMASK,
-		  .FilterScale = CAN_FILTERSCALE_32BIT,
-		  .FilterIdHigh = 0x333<<5,
-		  .FilterIdLow = 0,
-		  .FilterMaskIdHigh = 0x333<<5,
-		  .FilterMaskIdLow = 0x0000
-	  };
-	  if (HAL_CAN_ConfigFilter(&hcan, &canfilterconfig)!=HAL_OK){
-		  Error_Handler();
-	  }
-	 /*turn on receiving interrupt, then starts the CAN module*/
-	  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK){
-		  Error_Handler();
-	  }
+//	/*CAN receive filter configuration "for testing purposes"*/
+//	  CAN_FilterTypeDef canfilterconfig = {
+//		  .FilterActivation = CAN_FILTER_ENABLE,
+//		  .SlaveStartFilterBank = 0,	// how many filters to assign to the CAN1 (master can)
+//		  .FilterBank = 7,				// which filter bank to use from the assigned ones
+//		  .FilterFIFOAssignment = CAN_FILTER_FIFO0,
+//		  .FilterMode = CAN_FILTERMODE_IDMASK,
+//		  .FilterScale = CAN_FILTERSCALE_32BIT,
+//		  .FilterIdHigh = 0x333<<5,
+//		  .FilterIdLow = 0,
+//		  .FilterMaskIdHigh = 0x333<<5,
+//		  .FilterMaskIdLow = 0x0000
+//	  };
+//	  if (HAL_CAN_ConfigFilter(&hcan, &canfilterconfig)!=HAL_OK){
+//		  Error_Handler();
+//	  }
+//	 /*turn on receiving interrupt, then starts the CAN module*/
+//	  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK){
+//		  Error_Handler();
+//	  }
 	  HAL_CAN_Start(&hcan);
 	  /*wait until the accel pedal is released, then zero the APPS*/
 	  while(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1));
@@ -230,15 +230,15 @@ void user_main(){
 
 		  /*temp sensor MLX90614 read API */
 		  //HAL_StatusTypeDef status = HAL_I2C_IsDeviceReady(&hi2c1,0x5A<<1,2,2);
-		  uint8_t temp_L1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5A,0x07,0) );
-		  uint8_t temp_L2 = tire_temp_transfer_function( MLX90614_ReadReg(0x5B,0x07,0) );
-		  uint8_t temp_R1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5C,0x07,0) );
-		  uint8_t temp_R2 = tire_temp_transfer_function( MLX90614_ReadReg(0x5D,0x07,0) );
-		  if(HAL_I2C_GetError(&hi2c1) == 0x202){
-			  if( I2C_start_error_handler() != HAL_OK){
-				  HAL_NVIC_SystemReset();
-			  }
-		  }
+//		  uint8_t temp_L1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5A,0x07,0) );
+//		  uint8_t temp_L2 = tire_temp_transfer_function( MLX90614_ReadReg(0x5B,0x07,0) );
+//		  uint8_t temp_R1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5C,0x07,0) );
+//		  uint8_t temp_R2 = tire_temp_transfer_function( MLX90614_ReadReg(0x5D,0x07,0) );
+//		  if(HAL_I2C_GetError(&hi2c1) == 0x202){
+//			  if( I2C_start_error_handler() != HAL_OK){
+//				  HAL_NVIC_SystemReset();
+//			  }
+//		  }
 		  //uint8_t temp_L1 = 7;
 
 		  /*grabbing the suspension travel data*/
@@ -250,7 +250,7 @@ void user_main(){
 
 		  /*grab the absolute encoder data
 		   * TODO: delays too long. AMT22 only requires 3 microseconds between transfer*/
-		  uint16_t amt22_pos =steering_transfer_function( getPositionSPI(&hspi2, GPIOC, GPIO_PIN_14, 12) );
+		  uint16_t amt22_pos = steering_transfer_function( getPositionSPI(&hspi2, GPIOC, GPIO_PIN_14, 12) );
 
 #ifdef USE_LIVE_EXPRESSIONS
 		  live_APPS1_signal = APPS1Value;
@@ -267,10 +267,10 @@ void user_main(){
 		  CAN_TxData_1[1] = (uint8_t)(wheel_speedL & 0x00FF);
 		  CAN_TxData_1[2] = (uint8_t)(wheel_speedR>>8);
 		  CAN_TxData_1[3] = (uint8_t)(wheel_speedR & 0x00FF);
-		  CAN_TxData_1[4] = temp_L1;
-		  CAN_TxData_1[5] = temp_L2;
-		  CAN_TxData_1[6] = temp_R1;
-		  CAN_TxData_1[7] = temp_R2;
+//		  CAN_TxData_1[4] = temp_L1;
+//		  CAN_TxData_1[5] = temp_L2;
+//		  CAN_TxData_1[6] = temp_R1;
+//		  CAN_TxData_1[7] = temp_R2;
 
 		  CAN_TxData_2[0] = BSEValue;
 
@@ -325,6 +325,7 @@ void user_main(){
 
 		  /*superloop execution interval*/
 		  HAL_Delay(1);
+//		  HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13);
 #ifdef USE_LIVE_EXPRESSIONS
 		  t_after_cycle = HAL_GetTick();
 #endif
@@ -353,13 +354,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN){
 #endif
 			break;
 		case GPIO_PIN_0:
-			printf("EXTI0\n");
+			//printf("EXTI0\n");
 			break;
 		case GPIO_PIN_1:
-			printf("EXTI1\n");
+			//printf("EXTI1\n");
 			break;
 		case GPIO_PIN_15:
-			printf("EXTI15\n");
+			//printf("EXTI15\n");
 			break;
 	}
 	HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13);
