@@ -194,7 +194,7 @@ void user_main(){
 	  }
 	  HAL_CAN_Start(&hcan);
 	  /*wait until the accel pedal is released, then zero the APPS*/
-	  while(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1));
+	  while(HAL_GPIO_ReadPin(APPS_MICRO_GPIO_Port,APPS_MICRO_Pin));
 	  throttle_sensors_calibration(ADC_value[ADC_DMA_ARRAY_RANK_APPS1],1);
 	  throttle_sensors_calibration(ADC_value[ADC_DMA_ARRAY_RANK_APPS2],2);
 	  throttle_sensors_calibration(ADC_value[ADC_DMA_ARRAY_RANK_BSE],0);
@@ -212,8 +212,8 @@ void user_main(){
 		  /*the pinsare connected to NO pin on the switch, which is connected to Gnd, and the switch is pressed when
 		   *the pedals are at the fully extended state. So, The boolean state of the pin matches whether the pedal
 		   *is pressed or not.*/
-		  uint8_t APPSmicro = HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1);
-		  uint8_t BSEmicro = HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0);
+		  uint8_t APPSmicro = HAL_GPIO_ReadPin(APPS_MICRO_GPIO_Port,APPS_MICRO_Pin);
+		  uint8_t BSEmicro = HAL_GPIO_ReadPin(BSE_MICRO_GPIO_Port,BSE_MICRO_Pin);
 		  /*APPS&BSE value preprocessing*/
 		  uint8_t APPS1Value = throttle_sensors_transfer_function(APPS1test,1);
 		  uint8_t APPS2Value = throttle_sensors_transfer_function(APPS2test,2);
@@ -250,7 +250,7 @@ void user_main(){
 
 		  /*grab the absolute encoder data
 		   * TODO: delays too long. AMT22 only requires 3 microseconds between transfer*/
-		  uint16_t amt22_pos = steering_transfer_function( getPositionSPI(&hspi2, GPIOC, GPIO_PIN_14, 12) );
+		  uint16_t amt22_pos = steering_transfer_function( getPositionSPI(&hspi2, STEER_SENS_CS_GPIO_Port, STEER_SENS_CS_Pin, 12) );
 
 #ifdef USE_LIVE_EXPRESSIONS
 		  live_APPS1_signal = APPS1Value;
@@ -339,23 +339,23 @@ void user_main(){
   */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN){
 	switch (GPIO_PIN){
-		case GPIO_PIN_5: /*right wheel hall sensor*/
+		case RIGHT_HALL_SENS_Pin: /*right wheel hall sensor*/
 			hall_counter[1]++;
 #ifdef PRINTF_TEST_OUTPUT
 			printf("EXTI5:%d\n",hall_counter[1]);
 #endif
 			break;
-		case GPIO_PIN_7: /*left wheel hall sensor*/
+		case LEFT_HALL_SENS_Pin: /*left wheel hall sensor*/
 			hall_counter[0]++;
 			//HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13);
 #ifdef PRINTF_TEST_OUTPUT
 			printf("EXTI7:%d\n",hall_counter[0]);
 #endif
 			break;
-		case GPIO_PIN_0:
+		case BSE_MICRO_Pin:
 			//printf("EXTI0\n");
 			break;
-		case GPIO_PIN_1:
+		case APPS_MICRO_Pin:
 			//printf("EXTI1\n");
 			break;
 		case GPIO_PIN_15:

@@ -35,15 +35,15 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  15 .debug_ranges 00001400  00000000  00000000  0003a3b8  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_macro  00003bfd  00000000  00000000  0003b7b8  2**0
+ 16 .debug_macro  00003c7a  00000000  00000000  0003b7b8  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_line   00017733  00000000  00000000  0003f3b5  2**0
+ 17 .debug_line   00017733  00000000  00000000  0003f432  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_str    000984d8  00000000  00000000  00056ae8  2**0
+ 18 .debug_str    00098693  00000000  00000000  00056b65  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .comment      00000050  00000000  00000000  000eefc0  2**0
+ 19 .comment      00000050  00000000  00000000  000ef1f8  2**0
                   CONTENTS, READONLY
- 20 .debug_frame  00006bb8  00000000  00000000  000ef010  2**2
+ 20 .debug_frame  00006bb8  00000000  00000000  000ef248  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -3808,21 +3808,21 @@ static void MX_GPIO_Init(void)
  800215a:	683b      	ldr	r3, [r7, #0]
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(TEST_LED_GPIO_Port, TEST_LED_Pin, GPIO_PIN_RESET);
  800215c:	2200      	movs	r2, #0
  800215e:	f44f 5100 	mov.w	r1, #8192	; 0x2000
  8002162:	4839      	ldr	r0, [pc, #228]	; (8002248 <MX_GPIO_Init+0x160>)
  8002164:	f002 fd0d 	bl	8004b82 <HAL_GPIO_WritePin>
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_14, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(STEER_SENS_CS_GPIO_Port, STEER_SENS_CS_Pin, GPIO_PIN_SET);
  8002168:	2201      	movs	r2, #1
  800216a:	f44f 4180 	mov.w	r1, #16384	; 0x4000
  800216e:	4836      	ldr	r0, [pc, #216]	; (8002248 <MX_GPIO_Init+0x160>)
  8002170:	f002 fd07 	bl	8004b82 <HAL_GPIO_WritePin>
 
-  /*Configure GPIO pin : PC13 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  /*Configure GPIO pin : TEST_LED_Pin */
+  GPIO_InitStruct.Pin = TEST_LED_Pin;
  8002174:	f44f 5300 	mov.w	r3, #8192	; 0x2000
  8002178:	613b      	str	r3, [r7, #16]
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -3834,14 +3834,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
  8002182:	2302      	movs	r3, #2
  8002184:	61fb      	str	r3, [r7, #28]
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(TEST_LED_GPIO_Port, &GPIO_InitStruct);
  8002186:	f107 0310 	add.w	r3, r7, #16
  800218a:	4619      	mov	r1, r3
  800218c:	482e      	ldr	r0, [pc, #184]	; (8002248 <MX_GPIO_Init+0x160>)
  800218e:	f002 fb5d 	bl	800484c <HAL_GPIO_Init>
 
-  /*Configure GPIO pin : PC14 */
-  GPIO_InitStruct.Pin = GPIO_PIN_14;
+  /*Configure GPIO pin : STEER_SENS_CS_Pin */
+  GPIO_InitStruct.Pin = STEER_SENS_CS_Pin;
  8002192:	f44f 4380 	mov.w	r3, #16384	; 0x4000
  8002196:	613b      	str	r3, [r7, #16]
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -3853,7 +3853,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
  80021a0:	2301      	movs	r3, #1
  80021a2:	61fb      	str	r3, [r7, #28]
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(STEER_SENS_CS_GPIO_Port, &GPIO_InitStruct);
  80021a4:	f107 0310 	add.w	r3, r7, #16
  80021a8:	4619      	mov	r1, r3
  80021aa:	4827      	ldr	r0, [pc, #156]	; (8002248 <MX_GPIO_Init+0x160>)
@@ -3875,8 +3875,8 @@ static void MX_GPIO_Init(void)
  80021c4:	4820      	ldr	r0, [pc, #128]	; (8002248 <MX_GPIO_Init+0x160>)
  80021c6:	f002 fb41 	bl	800484c <HAL_GPIO_Init>
 
-  /*Configure GPIO pins : PA0 PA1 PA7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_7;
+  /*Configure GPIO pins : BSE_MICRO_Pin APPS_MICRO_Pin LEFT_HALL_SENS_Pin */
+  GPIO_InitStruct.Pin = BSE_MICRO_Pin|APPS_MICRO_Pin|LEFT_HALL_SENS_Pin;
  80021ca:	2383      	movs	r3, #131	; 0x83
  80021cc:	613b      	str	r3, [r7, #16]
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
@@ -3891,8 +3891,8 @@ static void MX_GPIO_Init(void)
  80021dc:	481c      	ldr	r0, [pc, #112]	; (8002250 <MX_GPIO_Init+0x168>)
  80021de:	f002 fb35 	bl	800484c <HAL_GPIO_Init>
 
-  /*Configure GPIO pin : PB5 */
-  GPIO_InitStruct.Pin = GPIO_PIN_5;
+  /*Configure GPIO pin : RIGHT_HALL_SENS_Pin */
+  GPIO_InitStruct.Pin = RIGHT_HALL_SENS_Pin;
  80021e2:	2320      	movs	r3, #32
  80021e4:	613b      	str	r3, [r7, #16]
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
@@ -3901,7 +3901,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
  80021ea:	2301      	movs	r3, #1
  80021ec:	61bb      	str	r3, [r7, #24]
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  HAL_GPIO_Init(RIGHT_HALL_SENS_GPIO_Port, &GPIO_InitStruct);
  80021ee:	f107 0310 	add.w	r3, r7, #16
  80021f2:	4619      	mov	r1, r3
  80021f4:	4817      	ldr	r0, [pc, #92]	; (8002254 <MX_GPIO_Init+0x16c>)
@@ -4955,7 +4955,7 @@ void EXTI0_IRQHandler(void)
   /* USER CODE BEGIN EXTI0_IRQn 0 */
 
   /* USER CODE END EXTI0_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+  HAL_GPIO_EXTI_IRQHandler(BSE_MICRO_Pin);
  800277e:	2001      	movs	r0, #1
  8002780:	f002 fa30 	bl	8004be4 <HAL_GPIO_EXTI_IRQHandler>
   /* USER CODE BEGIN EXTI0_IRQn 1 */
@@ -4977,7 +4977,7 @@ void EXTI1_IRQHandler(void)
   /* USER CODE BEGIN EXTI1_IRQn 0 */
 
   /* USER CODE END EXTI1_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
+  HAL_GPIO_EXTI_IRQHandler(APPS_MICRO_Pin);
  800278c:	2002      	movs	r0, #2
  800278e:	f002 fa29 	bl	8004be4 <HAL_GPIO_EXTI_IRQHandler>
   /* USER CODE BEGIN EXTI1_IRQn 1 */
@@ -5024,10 +5024,10 @@ void EXTI9_5_IRQHandler(void)
   /* USER CODE BEGIN EXTI9_5_IRQn 0 */
 
   /* USER CODE END EXTI9_5_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_5);
+  HAL_GPIO_EXTI_IRQHandler(RIGHT_HALL_SENS_Pin);
  80027b0:	2020      	movs	r0, #32
  80027b2:	f002 fa17 	bl	8004be4 <HAL_GPIO_EXTI_IRQHandler>
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_7);
+  HAL_GPIO_EXTI_IRQHandler(LEFT_HALL_SENS_Pin);
  80027b6:	2080      	movs	r0, #128	; 0x80
  80027b8:	f002 fa14 	bl	8004be4 <HAL_GPIO_EXTI_IRQHandler>
   /* USER CODE BEGIN EXTI9_5_IRQn 1 */
@@ -5511,7 +5511,7 @@ void user_main(){
  80029ea:	4888      	ldr	r0, [pc, #544]	; (8002c0c <user_main+0x274>)
  80029ec:	f000 ffeb 	bl	80039c6 <HAL_CAN_Start>
 	  /*wait until the accel pedal is released, then zero the APPS*/
-	  while(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1));
+	  while(HAL_GPIO_ReadPin(APPS_MICRO_GPIO_Port,APPS_MICRO_Pin));
  80029f0:	bf00      	nop
  80029f2:	2102      	movs	r1, #2
  80029f4:	4886      	ldr	r0, [pc, #536]	; (8002c10 <user_main+0x278>)
@@ -5557,13 +5557,13 @@ void user_main(){
 		  /*the pinsare connected to NO pin on the switch, which is connected to Gnd, and the switch is pressed when
 		   *the pedals are at the fully extended state. So, The boolean state of the pin matches whether the pedal
 		   *is pressed or not.*/
-		  uint8_t APPSmicro = HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1);
+		  uint8_t APPSmicro = HAL_GPIO_ReadPin(APPS_MICRO_GPIO_Port,APPS_MICRO_Pin);
  8002a36:	2102      	movs	r1, #2
  8002a38:	4875      	ldr	r0, [pc, #468]	; (8002c10 <user_main+0x278>)
  8002a3a:	f002 f88b 	bl	8004b54 <HAL_GPIO_ReadPin>
  8002a3e:	4603      	mov	r3, r0
  8002a40:	f887 303b 	strb.w	r3, [r7, #59]	; 0x3b
-		  uint8_t BSEmicro = HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0);
+		  uint8_t BSEmicro = HAL_GPIO_ReadPin(BSE_MICRO_GPIO_Port,BSE_MICRO_Pin);
  8002a44:	2101      	movs	r1, #1
  8002a46:	4872      	ldr	r0, [pc, #456]	; (8002c10 <user_main+0x278>)
  8002a48:	f002 f884 	bl	8004b54 <HAL_GPIO_ReadPin>
@@ -5638,7 +5638,7 @@ void user_main(){
 
 		  /*grab the absolute encoder data
 		   * TODO: delays too long. AMT22 only requires 3 microseconds between transfer*/
-		  uint16_t amt22_pos = steering_transfer_function( getPositionSPI(&hspi2, GPIOC, GPIO_PIN_14, 12) );
+		  uint16_t amt22_pos = steering_transfer_function( getPositionSPI(&hspi2, STEER_SENS_CS_GPIO_Port, STEER_SENS_CS_Pin, 12) );
  8002ac8:	230c      	movs	r3, #12
  8002aca:	f44f 4280 	mov.w	r2, #16384	; 0x4000
  8002ace:	4952      	ldr	r1, [pc, #328]	; (8002c18 <user_main+0x280>)
@@ -5867,10 +5867,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN){
  8002c60:	2b01      	cmp	r3, #1
  8002c62:	d00f      	beq.n	8002c84 <HAL_GPIO_EXTI_Callback+0x4c>
  8002c64:	2b02      	cmp	r3, #2
-		case GPIO_PIN_0:
+		case BSE_MICRO_Pin:
 			//printf("EXTI0\n");
 			break;
-		case GPIO_PIN_1:
+		case APPS_MICRO_Pin:
 			//printf("EXTI1\n");
 			break;
  8002c66:	e00e      	b.n	8002c86 <HAL_GPIO_EXTI_Callback+0x4e>
