@@ -57,6 +57,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define ADC_DMA_ARRAY_RANK_LTRAVEL 0
+#define ADC_DMA_ARRAY_RANK_RTRAVEL 1
+#define ADC_DMA_ARRAY_RANK_OILPRESSURE 2
+#define ADC_DMA_ARRAY_RANK_APPS1 3
+#define ADC_DMA_ARRAY_RANK_APPS2 4
+#define ADC_DMA_ARRAY_RANK_BSE 5
 #define TEST_LED_Pin GPIO_PIN_13
 #define TEST_LED_GPIO_Port GPIOC
 #define STEER_SENS_CS_Pin GPIO_PIN_14
@@ -74,6 +80,13 @@ void Error_Handler(void);
 #define RIGHT_HALL_SENS_GPIO_Port GPIOB
 #define RIGHT_HALL_SENS_EXTI_IRQn EXTI9_5_IRQn
 /* USER CODE BEGIN Private defines */
+
+//#define ADC_LTRAVEL 0		/*IN6,PA6*/
+//#define ADC_RTRAVEL 1		/*IN9,PB1*/
+//#define ADC_OILPRESSURE 2	/*IN8,PB0*/
+//#define ADC_APPS1 3		/*IN2,PA2*/
+//#define ADC_APPS2 4		/*IN3,PA3*/
+//#define ADC_BSE 5			/*IN4,PA4*/
 
 /* USER CODE END Private defines */
 

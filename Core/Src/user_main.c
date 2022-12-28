@@ -114,14 +114,6 @@ extern SPI_HandleTypeDef hspi2;
 extern TIM_HandleTypeDef htim3;
 extern UART_HandleTypeDef huart1;
 
-
-#define ADC_DMA_ARRAY_RANK_LTRAVEL 0	/*IN6,PA6*/
-#define ADC_DMA_ARRAY_RANK_RTRAVEL 1	/*IN9,PB1*/
-#define ADC_DMA_ARRAY_RANK_OILPRESSURE 2/*IN8,PB0*/
-#define ADC_DMA_ARRAY_RANK_APPS1 3		/*IN2,PA2*/
-#define ADC_DMA_ARRAY_RANK_APPS2 4		/*IN3,PA3*/
-#define ADC_DMA_ARRAY_RANK_BSE 5		/*IN4,PA4*/
-
 /*ADC1 DMA destination array, the corresponding rank is defined above.*/
 static uint32_t ADC_value[6]={0};
 
