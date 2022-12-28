@@ -172,26 +172,26 @@ void user_main(){
 	 /*timer3 interrupt mode start, used in hall sensors calculations*/
 	 HAL_TIM_Base_Start_IT(&htim3);
 
-//	/*CAN receive filter configuration "for testing purposes"*/
-//	  CAN_FilterTypeDef canfilterconfig = {
-//		  .FilterActivation = CAN_FILTER_ENABLE,
-//		  .SlaveStartFilterBank = 0,	// how many filters to assign to the CAN1 (master can)
-//		  .FilterBank = 7,				// which filter bank to use from the assigned ones
-//		  .FilterFIFOAssignment = CAN_FILTER_FIFO0,
-//		  .FilterMode = CAN_FILTERMODE_IDMASK,
-//		  .FilterScale = CAN_FILTERSCALE_32BIT,
-//		  .FilterIdHigh = 0x333<<5,
-//		  .FilterIdLow = 0,
-//		  .FilterMaskIdHigh = 0x333<<5,
-//		  .FilterMaskIdLow = 0x0000
-//	  };
-//	  if (HAL_CAN_ConfigFilter(&hcan, &canfilterconfig)!=HAL_OK){
-//		  Error_Handler();
-//	  }
-//	 /*turn on receiving interrupt, then starts the CAN module*/
-//	  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK){
-//		  Error_Handler();
-//	  }
+	/*CAN receive filter configuration "for testing purposes"*/
+	  CAN_FilterTypeDef canfilterconfig = {
+		  .FilterActivation = CAN_FILTER_ENABLE,
+		  .SlaveStartFilterBank = 0,	// how many filters to assign to the CAN1 (master can)
+		  .FilterBank = 7,				// which filter bank to use from the assigned ones
+		  .FilterFIFOAssignment = CAN_FILTER_FIFO0,
+		  .FilterMode = CAN_FILTERMODE_IDMASK,
+		  .FilterScale = CAN_FILTERSCALE_32BIT,
+		  .FilterIdHigh = 0x080AD092>>13,
+		  .FilterIdLow = 0x080AD092>>13,
+		  .FilterMaskIdHigh = 0x0000,
+		  .FilterMaskIdLow = 0x0000
+	  };
+	  if (HAL_CAN_ConfigFilter(&hcan, &canfilterconfig)!=HAL_OK){
+		  Error_Handler();
+	  }
+	 /*turn on receiving interrupt, then starts the CAN module*/
+	  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK){
+		  Error_Handler();
+	  }
 	  HAL_CAN_Start(&hcan);
 	  /*wait until the accel pedal is released, then zero the APPS*/
 	  while(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1));
@@ -325,7 +325,6 @@ void user_main(){
 
 		  /*superloop execution interval*/
 		  HAL_Delay(1);
-//		  HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13);
 #ifdef USE_LIVE_EXPRESSIONS
 		  t_after_cycle = HAL_GetTick();
 #endif
@@ -395,11 +394,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
   if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, CAN_RxData) != HAL_OK){
-    Error_Handler();
+    CAN_error_handler();
   }
-   if (CAN_RxData[0]==0x01&&CAN_RxData[1]==0x02&&CAN_RxData[2]==0x03&&CAN_RxData[3]==0x04){
+  if(RxHeader.ExtId == 0x080AD092){
 	  HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13);
   }
+
 
    return;
 }
