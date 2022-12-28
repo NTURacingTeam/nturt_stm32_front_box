@@ -114,7 +114,7 @@ extern SPI_HandleTypeDef hspi2;
 extern TIM_HandleTypeDef htim3;
 extern UART_HandleTypeDef huart1;
 
-/*ADC1 DMA destination array, the corresponding rank is defined above.*/
+/*ADC1 DMA destination array, the corresponding rank is in main.h*/
 static uint32_t ADC_value[6]={0};
 
 /*Hall effect sensor counter variable, 0 for left , 1 for right
@@ -122,10 +122,10 @@ static uint32_t ADC_value[6]={0};
  * hall_counter_result is updated by the timer ISR at a fixed interval to obtain the counting
  * rate
  * */
-#define NUMBER_OF_HALL_SENSORS 2
-static int hall_counter[NUMBER_OF_HALL_SENSORS]={0};
-static int hall_counter_result[NUMBER_OF_HALL_SENSORS]={0};
-
+static int L_hall_counter = 0;
+static int R_hall_counter = 0;
+static int L_hall_counter_result = 0;
+static int R_hall_counter_result = 0;
 
 /*CAN required custom variables*/
 CAN_TxHeaderTypeDef TxHeader1={
@@ -217,20 +217,20 @@ void user_main(){
 #endif
 
 		  /*wheel speed output*/
-		  uint16_t wheel_speedL = wheel_speed_transfer_function(hall_counter_result[0]);
-		  uint16_t wheel_speedR = wheel_speed_transfer_function(hall_counter_result[1]);
+		  uint16_t wheel_speedL = wheel_speed_transfer_function(L_hall_counter_result);
+		  uint16_t wheel_speedR = wheel_speed_transfer_function(R_hall_counter_result);
 
 		  /*temp sensor MLX90614 read API */
 		  //HAL_StatusTypeDef status = HAL_I2C_IsDeviceReady(&hi2c1,0x5A<<1,2,2);
-//		  uint8_t temp_L1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5A,0x07,0) );
-//		  uint8_t temp_L2 = tire_temp_transfer_function( MLX90614_ReadReg(0x5B,0x07,0) );
-//		  uint8_t temp_R1 = tire_temp_transfer_function( MLX90614_ReadReg(0x5C,0x07,0) );
-//		  uint8_t temp_R2 = tire_temp_transfer_function( MLX90614_ReadReg(0x5D,0x07,0) );
-//		  if(HAL_I2C_GetError(&hi2c1) == 0x202){
-//			  if( I2C_start_error_handler() != HAL_OK){
-//				  HAL_NVIC_SystemReset();
-//			  }
-//		  }
+		  uint8_t temp_L1 = tire_temp_transfer_function( MLX90614_ReadReg(I2C_TEMP_L1_ID,I2C_TEMP_ADDR,0) );
+		  uint8_t temp_L2 = tire_temp_transfer_function( MLX90614_ReadReg(I2C_TEMP_L2_ID,I2C_TEMP_ADDR,0) );
+		  uint8_t temp_R1 = tire_temp_transfer_function( MLX90614_ReadReg(I2C_TEMP_R1_ID,I2C_TEMP_ADDR,0) );
+		  uint8_t temp_R2 = tire_temp_transfer_function( MLX90614_ReadReg(I2C_TEMP_R2_ID,I2C_TEMP_ADDR,0) );
+		  if(HAL_I2C_GetError(&hi2c1) == 0x202){
+			  if( I2C_start_error_handler() != HAL_OK){
+				  HAL_NVIC_SystemReset();
+			  }
+		  }
 		  //uint8_t temp_L1 = 7;
 
 		  /*grabbing the suspension travel data*/
@@ -259,10 +259,10 @@ void user_main(){
 		  CAN_TxData_1[1] = (uint8_t)(wheel_speedL & 0x00FF);
 		  CAN_TxData_1[2] = (uint8_t)(wheel_speedR>>8);
 		  CAN_TxData_1[3] = (uint8_t)(wheel_speedR & 0x00FF);
-//		  CAN_TxData_1[4] = temp_L1;
-//		  CAN_TxData_1[5] = temp_L2;
-//		  CAN_TxData_1[6] = temp_R1;
-//		  CAN_TxData_1[7] = temp_R2;
+		  CAN_TxData_1[4] = temp_L1;
+		  CAN_TxData_1[5] = temp_L2;
+		  CAN_TxData_1[6] = temp_R1;
+		  CAN_TxData_1[7] = temp_R2;
 
 		  CAN_TxData_2[0] = BSEValue;
 
@@ -332,16 +332,16 @@ void user_main(){
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN){
 	switch (GPIO_PIN){
 		case RIGHT_HALL_SENS_Pin: /*right wheel hall sensor*/
-			hall_counter[1]++;
+			R_hall_counter++;
 #ifdef PRINTF_TEST_OUTPUT
-			printf("EXTI5:%d\n",hall_counter[1]);
+			printf("EXTI5:%d\n",R_hall_counter);
 #endif
 			break;
 		case LEFT_HALL_SENS_Pin: /*left wheel hall sensor*/
-			hall_counter[0]++;
+			L_hall_counter++;
 			//HAL_GPIO_TogglePin(GPIOC,GPIO_PIN_13);
 #ifdef PRINTF_TEST_OUTPUT
-			printf("EXTI7:%d\n",hall_counter[0]);
+			printf("EXTI7:%d\n",L_hall_counter);
 #endif
 			break;
 		case BSE_MICRO_Pin:
@@ -368,11 +368,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN){
   */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if(htim==&htim3){
-		int i=0;
-		for(i=0;i<sizeof(hall_counter)/sizeof(hall_counter[0]);i++){
-			hall_counter_result[i]=hall_counter[i];
-			hall_counter[i]=0;
-		}
+		L_hall_counter_result = L_hall_counter;
+		R_hall_counter_result = R_hall_counter;
+		L_hall_counter = 0;
+		R_hall_counter = 0;
 	}
 	return;
 }

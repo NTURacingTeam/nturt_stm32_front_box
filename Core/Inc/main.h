@@ -63,6 +63,11 @@ void Error_Handler(void);
 #define ADC_DMA_ARRAY_RANK_APPS1 3
 #define ADC_DMA_ARRAY_RANK_APPS2 4
 #define ADC_DMA_ARRAY_RANK_BSE 5
+#define I2C_TEMP_L1_ID 0x5A
+#define I2C_TEMP_L2_ID 0x5B
+#define I2C_TEMP_R1_ID 0x5C
+#define I2C_TEMP_R2_ID 0x5D
+#define I2C_TEMP_ADDR 0x07
 #define TEST_LED_Pin GPIO_PIN_13
 #define TEST_LED_GPIO_Port GPIOC
 #define STEER_SENS_CS_Pin GPIO_PIN_14
