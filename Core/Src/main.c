@@ -54,7 +54,13 @@ TIM_HandleTypeDef htim3;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-
+ADC_HandleTypeDef* p_hadc_aSensor = &hadc1;
+DMA_HandleTypeDef* p_hdma_adc_aSensor = &hdma_adc1;
+CAN_HandleTypeDef* p_hcan = &hcan;
+I2C_HandleTypeDef* p_hi2c_tireTemp = &hi2c1;
+SPI_HandleTypeDef* p_hspi_steerEnc = &hspi2;
+TIM_HandleTypeDef* p_htim_hallSensorBase = &htim3;
+UART_HandleTypeDef* p_huart_testCOM = &huart1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/

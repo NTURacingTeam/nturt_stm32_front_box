@@ -106,13 +106,13 @@ uint32_t t_after_cycle;
  * Must be updated to match the defined structures in main.c everytime peripheral
  *  usage is changed.
  */
-extern ADC_HandleTypeDef hadc1;
-extern DMA_HandleTypeDef hdma_adc1;
-extern CAN_HandleTypeDef hcan;
-extern I2C_HandleTypeDef hi2c1;
-extern SPI_HandleTypeDef hspi2;
-extern TIM_HandleTypeDef htim3;
-extern UART_HandleTypeDef huart1;
+extern ADC_HandleTypeDef* p_hadc_aSensor;
+extern DMA_HandleTypeDef* p_hdma_adc_aSensor;
+extern CAN_HandleTypeDef* p_hcan;
+extern I2C_HandleTypeDef* p_hi2c_tireTemp;
+extern SPI_HandleTypeDef* p_hspi_steerEnc;
+extern TIM_HandleTypeDef* p_htim_hallSensorBase;
+extern UART_HandleTypeDef* p_huart_testCOM;
 
 /*ADC1 DMA destination array, the corresponding rank is in main.h*/
 static uint32_t ADC_value[6]={0};
@@ -159,10 +159,10 @@ uint8_t CAN_RxData[4]={0};
   */
 void user_main(){
 	 /*ADC1 DMA mode Start*/
-	 HAL_ADC_Start_DMA(&hadc1,(uint32_t*)&ADC_value,6);
+	 HAL_ADC_Start_DMA(p_hadc_aSensor,(uint32_t*)&ADC_value,6);
 
 	 /*timer3 interrupt mode start, used in hall sensors calculations*/
-	 HAL_TIM_Base_Start_IT(&htim3);
+	 HAL_TIM_Base_Start_IT(p_htim_hallSensorBase);
 
 	/*CAN receive filter configuration "for testing purposes"*/
 	  CAN_FilterTypeDef canfilterconfig = {
@@ -177,14 +177,14 @@ void user_main(){
 		  .FilterMaskIdHigh = 0x0000,
 		  .FilterMaskIdLow = 0x0000
 	  };
-	  if (HAL_CAN_ConfigFilter(&hcan, &canfilterconfig)!=HAL_OK){
+	  if (HAL_CAN_ConfigFilter(p_hcan, &canfilterconfig)!=HAL_OK){
 		  Error_Handler();
 	  }
 	 /*turn on receiving interrupt, then starts the CAN module*/
-	  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK){
+	  if (HAL_CAN_ActivateNotification(p_hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK){
 		  Error_Handler();
 	  }
-	  HAL_CAN_Start(&hcan);
+	  HAL_CAN_Start(p_hcan);
 	  /*wait until the accel pedal is released, then zero the APPS*/
 	  while(HAL_GPIO_ReadPin(APPS_MICRO_GPIO_Port,APPS_MICRO_Pin));
 	  throttle_sensors_calibration(ADC_value[ADC_DMA_ARRAY_RANK_APPS1],1);
@@ -226,7 +226,7 @@ void user_main(){
 		  uint8_t temp_L2 = tire_temp_transfer_function( MLX90614_ReadReg(I2C_TEMP_L2_ID,I2C_TEMP_ADDR,0) );
 		  uint8_t temp_R1 = tire_temp_transfer_function( MLX90614_ReadReg(I2C_TEMP_R1_ID,I2C_TEMP_ADDR,0) );
 		  uint8_t temp_R2 = tire_temp_transfer_function( MLX90614_ReadReg(I2C_TEMP_R2_ID,I2C_TEMP_ADDR,0) );
-		  if(HAL_I2C_GetError(&hi2c1) == 0x202){
+		  if(HAL_I2C_GetError(p_hi2c_tireTemp) == 0x202){
 			  if( I2C_start_error_handler() != HAL_OK){
 				  HAL_NVIC_SystemReset();
 			  }
@@ -242,7 +242,7 @@ void user_main(){
 
 		  /*grab the absolute encoder data
 		   * TODO: delays too long. AMT22 only requires 3 microseconds between transfer*/
-		  uint16_t amt22_pos = steering_transfer_function( getPositionSPI(&hspi2, STEER_SENS_CS_GPIO_Port, STEER_SENS_CS_Pin, 12) );
+		  uint16_t amt22_pos = steering_transfer_function( getPositionSPI(p_hspi_steerEnc, STEER_SENS_CS_GPIO_Port, STEER_SENS_CS_Pin, 12) );
 
 #ifdef USE_LIVE_EXPRESSIONS
 		  live_APPS1_signal = APPS1Value;
@@ -291,13 +291,13 @@ void user_main(){
 		  CAN_TxData_2[7] = (APPSmicro|(BSEmicro<<1)); //bit0 contains APPS switch data, bit1 contains BSE switch data
 		  /*the CAN transmit HAL API*/
 
-		  if(HAL_CAN_AddTxMessage(&hcan,&TxHeader1,CAN_TxData_1,&TxMailbox1) != HAL_OK){
+		  if(HAL_CAN_AddTxMessage(p_hcan,&TxHeader1,CAN_TxData_1,&TxMailbox1) != HAL_OK){
 			  CAN_error_handler();
 		  }
-		  if(HAL_CAN_AddTxMessage(&hcan,&TxHeader2,CAN_TxData_2,&TxMailbox2) != HAL_OK){
+		  if(HAL_CAN_AddTxMessage(p_hcan,&TxHeader2,CAN_TxData_2,&TxMailbox2) != HAL_OK){
 			  CAN_error_handler();
 		  }
-		  if(HAL_CAN_GetError(&hcan) != HAL_CAN_ERROR_NONE){
+		  if(HAL_CAN_GetError(p_hcan) != HAL_CAN_ERROR_NONE){
 			  CAN_error_handler();
 		  }
 
@@ -367,7 +367,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN){
   * @retval None
   */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
-	if(htim==&htim3){
+	if(htim==p_htim_hallSensorBase){
 		L_hall_counter_result = L_hall_counter;
 		R_hall_counter_result = R_hall_counter;
 		L_hall_counter = 0;
@@ -384,7 +384,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
   */
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
-  if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, CAN_RxData) != HAL_OK){
+  if (HAL_CAN_GetRxMessage(p_hcan, CAN_RX_FIFO0, &RxHeader, CAN_RxData) != HAL_OK){
     CAN_error_handler();
   }
   if(RxHeader.ExtId == 0x080AD092){
@@ -434,22 +434,22 @@ static void User_I2C2_AlternateFunction_Init(I2C_HandleTypeDef* i2cHandle) {
 
 
 HAL_StatusTypeDef I2C_start_error_handler(){
-	hi2c1.ErrorCode = HAL_I2C_ERROR_AF;
+	p_hi2c_tireTemp->ErrorCode = HAL_I2C_ERROR_AF;
 	/* 1. Disable the I2C peripheral by clearing the PE bit in I2Cx_CR1 register */
-	__HAL_I2C_DISABLE(&hi2c1);
-	HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6|GPIO_PIN_7);
+	__HAL_I2C_DISABLE(p_hi2c_tireTemp);
+	HAL_GPIO_DeInit(I2C_TEMP_SCL_GPIO_Port, I2C_TEMP_SCL_Pin | I2C_TEMP_SDA_Pin);
 
 	/* 2. Configure the SCL and SDA I/Os as General Purpose Output Open-Drain, High level (Write 1 to GPIOx_ODR) */
-	User_I2C2_GeneralPurposeOutput_Init(&hi2c1);
+	User_I2C2_GeneralPurposeOutput_Init(p_hi2c_tireTemp);
 	HAL_Delay(1);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6 | GPIO_PIN_7, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(I2C_TEMP_SCL_GPIO_Port, I2C_TEMP_SCL_Pin | I2C_TEMP_SDA_Pin, GPIO_PIN_SET);
 	HAL_Delay(1);
 
 	/* 3. Check SCL and SDA High level in GPIOx_IDR */
-	if ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6) != GPIO_PIN_SET)||(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7) != GPIO_PIN_SET))
+	if ((HAL_GPIO_ReadPin(I2C_TEMP_SCL_GPIO_Port, I2C_TEMP_SCL_Pin) != GPIO_PIN_SET)||(HAL_GPIO_ReadPin(I2C_TEMP_SDA_GPIO_Port, I2C_TEMP_SDA_Pin) != GPIO_PIN_SET))
 	{
 #ifdef I2C_TEST
-		printf("3.PB10=%d, PB11=%d\r\n", HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6), HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7));
+		printf("3.PB10=%d, PB11=%d\r\n", HAL_GPIO_ReadPin(I2C_TEMP_SCL_GPIO_Port, I2C_TEMP_SCL_Pin), HAL_GPIO_ReadPin(I2C_TEMP_SDA_GPIO_Port, I2C_TEMP_SDA_Pin));
 #endif
 		return HAL_ERROR;
 	}
@@ -459,12 +459,12 @@ HAL_StatusTypeDef I2C_start_error_handler(){
 	 * 6. Configure the SCL I/O as General Purpose Output Open-Drain, Low level (Write 0 to GPIOx_ODR)
 	 * 7. Check SCL Low level in GPIOx_IDR.
 	 * */
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOB, I2C_TEMP_SCL_Pin | I2C_TEMP_SDA_Pin, GPIO_PIN_RESET);
 	HAL_Delay(1);
-	if ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6) != GPIO_PIN_RESET)||(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7) != GPIO_PIN_RESET))
+	if ((HAL_GPIO_ReadPin(I2C_TEMP_SCL_GPIO_Port, I2C_TEMP_SCL_Pin) != GPIO_PIN_RESET)||(HAL_GPIO_ReadPin(I2C_TEMP_SDA_GPIO_Port, I2C_TEMP_SDA_Pin) != GPIO_PIN_RESET))
 	{
 #ifdef I2C_TEST
-		printf("4-7.PB10=%d, PB11=%d\r\n", HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6), HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7));
+		printf("4-7.PB10=%d, PB11=%d\r\n", HAL_GPIO_ReadPin(I2C_TEMP_SCL_GPIO_Port, I2C_TEMP_SCL_Pin), HAL_GPIO_ReadPin(I2C_TEMP_SDA_GPIO_Port, I2C_TEMP_SDA_Pin));
 #endif
 		return HAL_ERROR;
 	}
@@ -475,48 +475,48 @@ HAL_StatusTypeDef I2C_start_error_handler(){
 	 * 10. Configure the SDA I/O as General Purpose Output Open-Drain , High level (Write 1 to GPIOx_ODR).
 	 * 11. Check SDA High level in GPIOx_IDR.
 	 */
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(I2C_TEMP_SCL_GPIO_Port, I2C_TEMP_SCL_Pin | I2C_TEMP_SDA_Pin, GPIO_PIN_SET);
 	HAL_Delay(1);
-	if ((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6) != GPIO_PIN_SET)||(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7) != GPIO_PIN_SET))
+	if ((HAL_GPIO_ReadPin(I2C_TEMP_SCL_GPIO_Port, I2C_TEMP_SCL_Pin) != GPIO_PIN_SET)||(HAL_GPIO_ReadPin(I2C_TEMP_SDA_GPIO_Port, I2C_TEMP_SDA_Pin) != GPIO_PIN_SET))
 	{
 #ifdef I2C_TEST
-		printf("8-11.PB10=%d, PB11=%d\r\n", HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6), HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7));
+		printf("8-11.PB10=%d, PB11=%d\r\n", HAL_GPIO_ReadPin(I2C_TEMP_SCL_GPIO_Port, I2C_TEMP_SCL_Pin), HAL_GPIO_ReadPin(I2C_TEMP_SDA_GPIO_Port, I2C_TEMP_SDA_Pin));
 #endif
 		return HAL_ERROR;
 	}
 
 	/* 12. Configure the SCL and SDA I/Os as Alternate function Open-Drain. */
-	HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6|GPIO_PIN_7);
-	User_I2C2_AlternateFunction_Init(&hi2c1);
+	HAL_GPIO_DeInit(I2C_TEMP_SCL_GPIO_Port, I2C_TEMP_SCL_Pin | I2C_TEMP_SDA_Pin);
+	User_I2C2_AlternateFunction_Init(p_hi2c_tireTemp);
 
 	/* 13. Set SWRST bit in I2Cx_CR1 register. */
-	hi2c1.Instance->CR1 |=  I2C_CR1_SWRST;
+	p_hi2c_tireTemp->Instance->CR1 |=  I2C_CR1_SWRST;
 	HAL_Delay(2);
 	/* 14. Clear SWRST bit in I2Cx_CR1 register. */
-	hi2c1.Instance->CR1 &=  ~I2C_CR1_SWRST;
+	p_hi2c_tireTemp->Instance->CR1 &=  ~I2C_CR1_SWRST;
 	HAL_Delay(2);
 	/* 15. Enable the I2C peripheral by setting the PE bit in I2Cx_CR1 register */
-	hi2c1.Instance = I2C1;
-	hi2c1.Init.ClockSpeed = 50000;
-	hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
-	hi2c1.Init.OwnAddress1 = 0;
-	hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-	hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-	hi2c1.Init.OwnAddress2 = 0;
-	hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-	hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-	if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+	p_hi2c_tireTemp->Instance = I2C1;
+	p_hi2c_tireTemp->Init.ClockSpeed = 50000;
+	p_hi2c_tireTemp->Init.DutyCycle = I2C_DUTYCYCLE_2;
+	p_hi2c_tireTemp->Init.OwnAddress1 = 0;
+	p_hi2c_tireTemp->Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+	p_hi2c_tireTemp->Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+	p_hi2c_tireTemp->Init.OwnAddress2 = 0;
+	p_hi2c_tireTemp->Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+	p_hi2c_tireTemp->Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+	if (HAL_I2C_Init(p_hi2c_tireTemp) != HAL_OK)
 	{
 	Error_Handler();
 	}
-	__HAL_I2C_ENABLE(&hi2c1);
+	__HAL_I2C_ENABLE(p_hi2c_tireTemp);
 	HAL_Delay(2);
 #ifdef I2C_TEST
 	printf("I2CResetBus\r\n");
 #endif
-	hi2c1.ErrorCode = HAL_I2C_ERROR_NONE;
-	hi2c1.State = HAL_I2C_STATE_READY;
+	p_hi2c_tireTemp->ErrorCode = HAL_I2C_ERROR_NONE;
+	p_hi2c_tireTemp->State = HAL_I2C_STATE_READY;
 //	hi2c1.PreviousState = I2C_STATE_NONE;
-	hi2c1.Mode = HAL_I2C_MODE_NONE;
+	p_hi2c_tireTemp->Mode = HAL_I2C_MODE_NONE;
 	return HAL_OK;
 }

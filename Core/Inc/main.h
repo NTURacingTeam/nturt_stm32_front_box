@@ -84,6 +84,10 @@ void Error_Handler(void);
 #define RIGHT_HALL_SENS_Pin GPIO_PIN_5
 #define RIGHT_HALL_SENS_GPIO_Port GPIOB
 #define RIGHT_HALL_SENS_EXTI_IRQn EXTI9_5_IRQn
+#define I2C_TEMP_SCL_Pin GPIO_PIN_6
+#define I2C_TEMP_SCL_GPIO_Port GPIOB
+#define I2C_TEMP_SDA_Pin GPIO_PIN_7
+#define I2C_TEMP_SDA_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 //#define ADC_LTRAVEL 0		/*IN6,PA6*/
