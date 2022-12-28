@@ -1,0 +1,4 @@
+Debug
+.settings
+STM32F103*
+*.launch
