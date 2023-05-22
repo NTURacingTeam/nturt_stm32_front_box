@@ -1,8 +1,0 @@
-../Core/Src/user_main.c:30:6:user_init	24	static
-../Core/Src/user_main.c:61:6:freertos_stats_task	56	static
-../Core/Src/user_main.c:107:10:get_10us	4	static
-../Core/Src/user_main.c:111:5:__io_putchar	16	static
-../Core/Src/user_main.c:117:6:configureTimerForRunTimeStats	8	static
-../Core/Src/user_main.c:118:15:getRunTimeCounterValue	8	static
-../Core/Src/user_main.c:121:6:vApplicationStackOverflowHook	16	static,ignoring_inline_asm
-../Core/Src/user_main.c:138:6:__module_assert_fail	32	static,ignoring_inline_asm

@@ -21,8 +21,6 @@ __dtcmram StaticTask_t status_controller_task_cb;
 TaskHandle_t status_controller_task_handle;
 
 /* Other variable ------------------------------------------------------------*/
-__dtcmram static uint8_t i2c_rx_buf[8];
-__dtcmram static uint8_t i2c_tx_buf[8];
 
 /* Task implementation -------------------------------------------------------*/
 void status_controller_task(void *argument) {

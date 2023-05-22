@@ -72,10 +72,20 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Encoder_SCK_Pin GPIO_PIN_2
+#define Encoder_SCK_GPIO_Port GPIOE
 #define EncoderSS_Pin GPIO_PIN_4
 #define EncoderSS_GPIO_Port GPIOE
+#define Encoder_MISO_Pin GPIO_PIN_5
+#define Encoder_MISO_GPIO_Port GPIOE
+#define Encoder_MOSI_Pin GPIO_PIN_6
+#define Encoder_MOSI_GPIO_Port GPIOE
 #define B1_Pin GPIO_PIN_13
 #define B1_GPIO_Port GPIOC
+#define RPi_SCL_Pin GPIO_PIN_0
+#define RPi_SCL_GPIO_Port GPIOF
+#define RPi_SDA_Pin GPIO_PIN_1
+#define RPi_SDA_GPIO_Port GPIOF
 #define BSE_micro_Pin GPIO_PIN_2
 #define BSE_micro_GPIO_Port GPIOF
 #define HallL_Pin GPIO_PIN_3
@@ -158,6 +168,10 @@ void Error_Handler(void);
 #define SWDIO_GPIO_Port GPIOA
 #define SWCLK_Pin GPIO_PIN_14
 #define SWCLK_GPIO_Port GPIOA
+#define TempR_SCL_Pin GPIO_PIN_10
+#define TempR_SCL_GPIO_Port GPIOC
+#define TempR_SDA_Pin GPIO_PIN_11
+#define TempR_SDA_GPIO_Port GPIOC
 #define error_led_Pin GPIO_PIN_12
 #define error_led_GPIO_Port GPIOC
 #define RTD_siren_Pin GPIO_PIN_0
@@ -168,6 +182,10 @@ void Error_Handler(void);
 #define RMII_TXD0_GPIO_Port GPIOG
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
+#define TempL_SCL_Pin GPIO_PIN_8
+#define TempL_SCL_GPIO_Port GPIOB
+#define TempL_SDA_Pin GPIO_PIN_9
+#define TempL_SDA_GPIO_Port GPIOB
 #define LED_YELLOW_Pin GPIO_PIN_1
 #define LED_YELLOW_GPIO_Port GPIOE
 
