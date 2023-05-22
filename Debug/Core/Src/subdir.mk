@@ -5,53 +5,59 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../Core/Src/MLX.c \
-../Core/Src/amt22.c \
-../Core/Src/analog_transfer_function.c \
+../Core/Src/dashboard.c \
+../Core/Src/freertos.c \
+../Core/Src/front_box_can.c \
 ../Core/Src/main.c \
-../Core/Src/printf_redirection.c \
-../Core/Src/stm32f1xx_hal_msp.c \
-../Core/Src/stm32f1xx_it.c \
+../Core/Src/status_controller.c \
+../Core/Src/stm32h7xx_hal_msp.c \
+../Core/Src/stm32h7xx_hal_timebase_tim.c \
+../Core/Src/stm32h7xx_it.c \
 ../Core/Src/syscalls.c \
 ../Core/Src/sysmem.c \
-../Core/Src/system_stm32f1xx.c \
+../Core/Src/system_stm32h7xx.c \
+../Core/Src/torque_controller.c \
 ../Core/Src/user_main.c 
 
 OBJS += \
-./Core/Src/MLX.o \
-./Core/Src/amt22.o \
-./Core/Src/analog_transfer_function.o \
+./Core/Src/dashboard.o \
+./Core/Src/freertos.o \
+./Core/Src/front_box_can.o \
 ./Core/Src/main.o \
-./Core/Src/printf_redirection.o \
-./Core/Src/stm32f1xx_hal_msp.o \
-./Core/Src/stm32f1xx_it.o \
+./Core/Src/status_controller.o \
+./Core/Src/stm32h7xx_hal_msp.o \
+./Core/Src/stm32h7xx_hal_timebase_tim.o \
+./Core/Src/stm32h7xx_it.o \
 ./Core/Src/syscalls.o \
 ./Core/Src/sysmem.o \
-./Core/Src/system_stm32f1xx.o \
+./Core/Src/system_stm32h7xx.o \
+./Core/Src/torque_controller.o \
 ./Core/Src/user_main.o 
 
 C_DEPS += \
-./Core/Src/MLX.d \
-./Core/Src/amt22.d \
-./Core/Src/analog_transfer_function.d \
+./Core/Src/dashboard.d \
+./Core/Src/freertos.d \
+./Core/Src/front_box_can.d \
 ./Core/Src/main.d \
-./Core/Src/printf_redirection.d \
-./Core/Src/stm32f1xx_hal_msp.d \
-./Core/Src/stm32f1xx_it.d \
+./Core/Src/status_controller.d \
+./Core/Src/stm32h7xx_hal_msp.d \
+./Core/Src/stm32h7xx_hal_timebase_tim.d \
+./Core/Src/stm32h7xx_it.d \
 ./Core/Src/syscalls.d \
 ./Core/Src/sysmem.d \
-./Core/Src/system_stm32f1xx.d \
+./Core/Src/system_stm32h7xx.d \
+./Core/Src/torque_controller.d \
 ./Core/Src/user_main.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes
 Core/Src/%.o Core/Src/%.su: ../Core/Src/%.c Core/Src/subdir.mk
-	arm-none-eabi-gcc "$<" -mcpu=cortex-m3 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F103xB -c -I../Core/Inc -I../Drivers/STM32F1xx_HAL_Driver/Inc -I../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I../Drivers/CMSIS/Include -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" --specs=nano.specs -mfloat-abi=soft -mthumb -o "$@"
+	arm-none-eabi-gcc "$<" -mcpu=cortex-m7 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32H723xx -c -I../Core/Inc -I../Drivers/STM32H7xx_HAL_Driver/Inc -I../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32H7xx/Include -I../Drivers/CMSIS/Include -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Lib/nturt_can_config/generated_code/nturt_can_config/include -I../Lib/nturt_stm32_module/include -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@"  -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -o "$@"
 
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/MLX.d ./Core/Src/MLX.o ./Core/Src/MLX.su ./Core/Src/amt22.d ./Core/Src/amt22.o ./Core/Src/amt22.su ./Core/Src/analog_transfer_function.d ./Core/Src/analog_transfer_function.o ./Core/Src/analog_transfer_function.su ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/printf_redirection.d ./Core/Src/printf_redirection.o ./Core/Src/printf_redirection.su ./Core/Src/stm32f1xx_hal_msp.d ./Core/Src/stm32f1xx_hal_msp.o ./Core/Src/stm32f1xx_hal_msp.su ./Core/Src/stm32f1xx_it.d ./Core/Src/stm32f1xx_it.o ./Core/Src/stm32f1xx_it.su ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f1xx.d ./Core/Src/system_stm32f1xx.o ./Core/Src/system_stm32f1xx.su ./Core/Src/user_main.d ./Core/Src/user_main.o ./Core/Src/user_main.su
+	-$(RM) ./Core/Src/dashboard.d ./Core/Src/dashboard.o ./Core/Src/dashboard.su ./Core/Src/freertos.d ./Core/Src/freertos.o ./Core/Src/freertos.su ./Core/Src/front_box_can.d ./Core/Src/front_box_can.o ./Core/Src/front_box_can.su ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/status_controller.d ./Core/Src/status_controller.o ./Core/Src/status_controller.su ./Core/Src/stm32h7xx_hal_msp.d ./Core/Src/stm32h7xx_hal_msp.o ./Core/Src/stm32h7xx_hal_msp.su ./Core/Src/stm32h7xx_hal_timebase_tim.d ./Core/Src/stm32h7xx_hal_timebase_tim.o ./Core/Src/stm32h7xx_hal_timebase_tim.su ./Core/Src/stm32h7xx_it.d ./Core/Src/stm32h7xx_it.o ./Core/Src/stm32h7xx_it.su ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32h7xx.d ./Core/Src/system_stm32h7xx.o ./Core/Src/system_stm32h7xx.su ./Core/Src/torque_controller.d ./Core/Src/torque_controller.o ./Core/Src/torque_controller.su ./Core/Src/user_main.d ./Core/Src/user_main.o ./Core/Src/user_main.su
 
 .PHONY: clean-Core-2f-Src
 

@@ -23,5 +23,11 @@ C_DEPS :=
 SUBDIRS := \
 Core/Src \
 Core/Startup \
-Drivers/STM32F1xx_HAL_Driver/Src \
+Drivers/STM32H7xx_HAL_Driver/Src \
+Lib/nturt_can_config/generated_code/nturt_can_config/src \
+Lib/nturt_stm32_module/src \
+Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 \
+Middlewares/Third_Party/FreeRTOS/Source \
+Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F \
+Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang \
 

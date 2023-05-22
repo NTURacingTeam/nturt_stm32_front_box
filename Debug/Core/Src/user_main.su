@@ -1,8 +1,8 @@
-../Core/Src/user_main.c:160:6:user_main	96	static
-../Core/Src/user_main.c:332:6:HAL_GPIO_EXTI_Callback	16	static
-../Core/Src/user_main.c:369:6:HAL_TIM_PeriodElapsedCallback	16	static
-../Core/Src/user_main.c:385:6:HAL_CAN_RxFifo0MsgPendingCallback	16	static
-../Core/Src/user_main.c:405:6:CAN_error_handler	8	static
-../Core/Src/user_main.c:410:13:User_I2C2_GeneralPurposeOutput_Init	32	static
-../Core/Src/user_main.c:423:13:User_I2C2_AlternateFunction_Init	32	static
-../Core/Src/user_main.c:436:19:I2C_start_error_handler	8	static
+../Core/Src/user_main.c:30:6:user_init	24	static
+../Core/Src/user_main.c:61:6:freertos_stats_task	56	static
+../Core/Src/user_main.c:107:10:get_10us	4	static
+../Core/Src/user_main.c:111:5:__io_putchar	16	static
+../Core/Src/user_main.c:117:6:configureTimerForRunTimeStats	8	static
+../Core/Src/user_main.c:118:15:getRunTimeCounterValue	8	static
+../Core/Src/user_main.c:121:6:vApplicationStackOverflowHook	16	static,ignoring_inline_asm
+../Core/Src/user_main.c:138:6:__module_assert_fail	32	static,ignoring_inline_asm

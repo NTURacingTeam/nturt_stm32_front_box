@@ -1,0 +1,6 @@
+# Ignore everything in this directory
+*
+# Except this file
+!.gitignore
+# c_cpp_properties.json for vscode to find the include paths
+!c_cpp_properties.json

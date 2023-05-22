@@ -1,6 +1,0 @@
-../Core/Src/amt22.c:17:6:setCSLine	16	static
-../Core/Src/amt22.c:22:9:spiWriteRead	40	static
-../Core/Src/amt22.c:42:10:getPositionSPI	56	static
-../Core/Src/amt22.c:76:6:setZeroSPI	32	static
-../Core/Src/amt22.c:89:6:resetAMT22	32	static
-../Core/Src/amt22.c:101:6:delay	24	static

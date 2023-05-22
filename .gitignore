@@ -1,4 +1,6 @@
-Debug/
 .settings
-STM32F103*
+Debug
+Drivers
+Middlewares
+Release
 *.launch

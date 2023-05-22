@@ -1,0 +1,8 @@
+[submodule "Lib/nturt_stm32_module"]
+	path = Lib/nturt_stm32_module
+	url = https://github.com/NTURacingTeam/nturt_stm32_module.git
+	branch = master
+[submodule "Lib/nturt_can_config"]
+	path = Lib/nturt_can_config
+	url = https://github.com/NTURacingTeam/nturt_can_config.git
+	branch = master
