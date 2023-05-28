@@ -14,48 +14,69 @@
 #include "stm32_module/stm32_module.h"
 
 // project include
-#include "dashboard.h"
+#include "dashboard_controller.h"
 #include "front_box_can.h"
 #include "project_def.h"
 #include "status_controller.h"
 #include "torque_controller.h"
 
 /* Exported variable ---------------------------------------------------------*/
-__dtcmram FrontBoxCan front_box_can;
+// stm32_module
+__dtcmram ButtonMonitor button_monitor;
 __dtcmram ErrorHandler error_handler;
+__dtcmram LedController led_controller;
+
+// project
+__dtcmram DashboardController dashboard_controller;
+__dtcmram FrontBoxCan front_box_can;
+__dtcmram SensorReader sensor_reader;
+__dtcmram StatusController status_controller;
+__dtcmram TorqueController torque_controller;
+
+__dtcmram TaskHandle_t freertos_stats_task_handle;
 
 /* Static variable -----------------------------------------------------------*/
+// stm32_module
+static __dtcmram struct button_cb button_cb[NUM_BUTTON];
+static __dtcmram struct led_cb led_cb[NUM_LED];
+
+// project
+static __dtcmram StaticTask_t freertos_stats_task_cb;
+static __dtcmram uint32_t
+    freertos_stats_task_buffer[FREERTOS_STATS_TASK_STACK_SIZE];
+
+/* Static function prototype -------------------------------------------------*/
+static void button_module_init();
+static void led_module_init();
 
 /* Entry point ---------------------------------------------------------------*/
 void user_init() {
+  // light up vcu light when initializing
+  HAL_GPIO_WritePin(LED_VCU_GPIO_Port, LED_VCU_Pin, GPIO_PIN_SET);
+
   // stm32_module
-  FrontBoxCan_ctor(&front_box_can, &hfdcan3);
-  CanTransceiver_start((CanTransceiver *)&front_box_can);
+  button_module_init();
   ErrorHandler_ctor(&error_handler);
   ErrorHandler_start(&error_handler);
+  led_module_init();
 
   // project
-  dashboard_task_handle = xTaskCreateStatic(
-      dashboard_task, "dashboard_task", FREERTOS_STATS_TASK_STACK_SIZE, NULL,
-      TaskPriorityLow, dashboard_task_buffer, &dashboard_task_cb);
-  freertos_stats_task_handle =
-      xTaskCreateStatic(freertos_stats_task, "freertos_stats_task",
-                        FREERTOS_STATS_TASK_STACK_SIZE, NULL, TaskPriorityLow,
-                        freertos_stats_task_buffer, &freertos_stats_task_cb);
-  status_controller_task_handle = xTaskCreateStatic(
-      status_controller_task, "status_controller_task",
-      STATUS_CONTROLLER_TASK_STACK_SIZE, NULL, TaskPriorityHigh,
-      status_controller_task_buffer, &status_controller_task_cb);
-  torque_controller_task_handle = xTaskCreateStatic(
-      torque_controller_task, "torque_controller_task",
-      TORQUE_CONTROLLER_TASK_STACK_SIZE, NULL, TaskPriorityHigh,
-      torque_controller_task_buffer, &torque_controller_task_cb);
-}
+  DashboardController_ctor(&dashboard_controller);
+  DashboardController_start(&dashboard_controller);
+  FrontBoxCan_ctor(&front_box_can, &hfdcan3);
+  FrontBoxCan_start(&front_box_can);
+  SensorReader_ctor(&sensor_reader);
+  SensorReader_start(&sensor_reader);
+  StatusController_ctor(&status_controller);
+  StatusController_start(&status_controller);
+  TorqueController_ctor(&torque_controller);
+  TorqueController_start(&torque_controller);
 
-/* Task control --------------------------------------------------------------*/
-__dtcmram uint32_t freertos_stats_task_buffer[FREERTOS_STATS_TASK_STACK_SIZE];
-__dtcmram StaticTask_t freertos_stats_task_cb;
-TaskHandle_t freertos_stats_task_handle;
+  freertos_stats_task_handle = xTaskCreateStatic(
+      freertos_stats_task, "freertos_stats_task",
+      FREERTOS_STATS_TASK_STACK_SIZE, NULL, TaskPriorityLowest,
+      freertos_stats_task_buffer, &freertos_stats_task_cb);
+}
 
 /* Task implementation -------------------------------------------------------*/
 void freertos_stats_task(void *argument) {
@@ -106,7 +127,64 @@ void freertos_stats_task(void *argument) {
 /* Exported function ---------------------------------------------------------*/
 uint32_t get_10us() { return htim2.Instance->CNT; }
 
-/* Static and callback function ----------------------------------------------*/
+/* Static function -----------------------------------------------------------*/
+static void button_module_init() {
+  ButtonMonitor_ctor(&button_monitor);
+
+  // should be in the same order as taht in project_def.h
+  ButtonMonitor_add_button(&button_monitor, &button_cb[BUTTON_BUILTIN],
+                           BUTTON_BUILTIN_GPIO_Port, BUTTON_BUILTIN_Pin);
+  ButtonMonitor_add_button(&button_monitor, &button_cb[BUTTON_RTD],
+                           BUTTON_RTD_GPIO_Port, BUTTON_RTD_Pin);
+  ButtonMonitor_add_button(&button_monitor, &button_cb[GEAR_HIGH],
+                           GEAR_HIGH_GPIO_Port, GEAR_HIGH_Pin);
+  ButtonMonitor_add_button(&button_monitor, &button_cb[GEAR_REVERSE],
+                           GEAR_REVERSE_GPIO_Port, GEAR_REVERSE_Pin);
+  ButtonMonitor_add_button(&button_monitor, &button_cb[MICRO_APPS],
+                           MICRO_APPS_GPIO_Port, MICRO_APPS_Pin);
+  ButtonMonitor_add_button(&button_monitor, &button_cb[MICRO_BSE],
+                           MICRO_BSE_GPIO_Port, MICRO_BSE_Pin);
+
+  ButtonMonitor_register_callback(&button_monitor, GEAR_HIGH,
+                                  &TorqueController_gear_high_button_callback,
+                                  (void *)&torque_controller);
+  ButtonMonitor_register_callback(
+      &button_monitor, GEAR_REVERSE,
+      &TorqueController_gear_reverse_button_callback,
+      (void *)&torque_controller);
+
+  ButtonMonitor_start(&button_monitor);
+}
+
+static void led_module_init() {
+  LedController_ctor(&led_controller);
+
+  // should be in the same order as taht in project_def.h
+  LedController_add_led(&led_controller, &led_cb[LED_BUILTIN_GREEN],
+                        LED_BUILTIN_GREEN_GPIO_Port, LED_BUILTIN_GREEN_Pin);
+  LedController_add_led(&led_controller, &led_cb[LED_BUILTIN_YELLOW],
+                        LED_BUILTIN_YELLOW_GPIO_Port, LED_BUILTIN_YELLOW_Pin);
+  LedController_add_led(&led_controller, &led_cb[LED_BUILTIN_RED],
+                        LED_BUILTIN_RED_GPIO_Port, LED_BUILTIN_RED_Pin);
+  LedController_add_led(&led_controller, &led_cb[LED_WARN], LED_WARN_GPIO_Port,
+                        LED_WARN_Pin);
+  LedController_add_led(&led_controller, &led_cb[LED_ERROR],
+                        LED_ERROR_GPIO_Port, LED_ERROR_Pin);
+  LedController_add_led(&led_controller, &led_cb[LED_CAN_TX],
+                        LED_CAN_TX_GPIO_Port, LED_CAN_TX_Pin);
+  LedController_add_led(&led_controller, &led_cb[LED_CAN_RX],
+                        LED_CAN_RX_GPIO_Port, LED_CAN_RX_Pin);
+  LedController_add_led(&led_controller, &led_cb[LED_VCU], LED_VCU_GPIO_Port,
+                        LED_VCU_Pin);
+  LedController_add_led(&led_controller, &led_cb[LED_RTD], LED_RTD_GPIO_Port,
+                        LED_RTD_Pin);
+  LedController_add_led(&led_controller, &led_cb[LED_GEAR], LED_GEAR_GPIO_Port,
+                        LED_GEAR_Pin);
+
+  LedController_start(&led_controller);
+}
+
+/* Callback function ---------------------------------------------------------*/
 // glibc callback function for printf
 int __io_putchar(int ch) {
   HAL_UART_Transmit(&huart3, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
@@ -126,9 +204,15 @@ void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName) {
   } else {
     printf("Stack overflowed for %s\n", pcTaskName);
 
-    HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_BUILTIN_GREEN_GPIO_Port, LED_BUILTIN_GREEN_Pin,
+                      GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_BUILTIN_YELLOW_GPIO_Port, LED_BUILTIN_YELLOW_Pin,
+                      GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_BUILTIN_RED_GPIO_Port, LED_BUILTIN_RED_Pin,
+                      GPIO_PIN_SET);
+
+    HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_VCU_GPIO_Port, LED_VCU_Pin, GPIO_PIN_SET);
     while (1) {
     }
   }
@@ -145,9 +229,15 @@ void __module_assert_fail(const char *assertion, const char *file,
     printf("%s:%u: %s: STM32 module assertion `%s' failed.\n", file, line,
            function, assertion);
 
-    HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(LED_YELLOW_GPIO_Port, LED_YELLOW_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_BUILTIN_GREEN_GPIO_Port, LED_BUILTIN_GREEN_Pin,
+                      GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_BUILTIN_YELLOW_GPIO_Port, LED_BUILTIN_YELLOW_Pin,
+                      GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_BUILTIN_RED_GPIO_Port, LED_BUILTIN_RED_Pin,
+                      GPIO_PIN_SET);
+
+    HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_VCU_GPIO_Port, LED_VCU_Pin, GPIO_PIN_SET);
     while (1) {
     }
   }

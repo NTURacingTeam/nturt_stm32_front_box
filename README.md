@@ -10,83 +10,82 @@
 
 #### Button (pull-down)
 
-- RTD_button -> GPIO `PE15`
-- Gear1 -> GPIO `PE8`
-- Gear2 -> GPIO `PE12`
-- Gear3 -> GPIO `PE10`
+- BUTTON_RTD -> GPIO `PE15`
+- GEAR_HIGH -> GPIO `PE8`
+- GEAR_REVERSE -> GPIO `PE12`
 
 #### Microswitch (pull-down)
 
-- BSE_micro -> GPIO `PF2`
-- APPS_micro -> GPIO `PE9`
+- MICRO_APPS -> GPIO `PE9`
+- MICRO_BSE -> GPIO `PF2`
 
 #### Hall Sensor (pull-down)
 
-- HallL -> GPIO `PF3`
-- HallR -> GPIO `PC8`
+- HALL_L -> GPIO `PF3`
+- HALL_R -> GPIO `PC8`
 
 #### LED
 
 ###### In Box
 
-- warn_led -> GPIO `PC9`
-- error_led -> GPIO `PC12`
-- can_led -> GPIO `PG2`
-- reserverd_led -> GPIO `PG3`
+- LED_WARN -> GPIO `PC9`
+- LED_ERROR -> GPIO `PC12`
+- LED_CAN_TX -> GPIO `PG2`
+- LED_CAN_RX -> GPIO `PG3`
 
 ###### On Dashboard
 
-- VCU_light -> GPIO `PE7`
-- RTD_light -> GPIO `PA0`
-- Gear_light -> GPIO `PE13`
+- LED_VCU -> GPIO `PE7`
+- LED_RTD -> GPIO `PA0`
+- LED_Gear -> GPIO `PE13`
 
 #### Other
 
-- RTD_siren -> GPIO `PD0`
+- SIREN_RTD -> GPIO `PD0`
 
 ### ADC
 
 #### Pedal
 
-- BSE -> ADC3 IN6 `PF10`
 - APPS1 -> ADC1 IN5 `PB1`
 - APPS2 -> ADC3 IN0 `PC2_C`
+- BSE -> ADC3 IN6 `PF10`
 
 #### Sunspension Travel
 
-- SuspensionL -> ADC3 IN8 `PF6`
-- SuspensionR -> ADC1 IN15 `PA3`
+- SUSPENSION_L -> ADC3 IN8 `PF6`
+- SUSPENSION_R -> ADC1 IN15 `PA3`
 
 #### Oil Pressure
 
-- Oil -> ADC1 IN18 `PA4`
+- OIL_PRESSURE -> ADC1 IN18 `PA4`
 
 #### Strain Guage
 
-- Strain -> ADC1 IN19 `PA5`
+- STRAIN -> ADC1 IN19 `PA5`
 
 ### I<sup>2</sup>C
 
 #### Temperature Sensor (as master)
 
-- TempL `SCL` -> I2C1 `PB8`
-- TempL `SDA` -> I2C1 `PB9`
-- TempR `SCL` -> I2C5 `PC10`
-- TempR `SDA` -> I2C5 `PC11`
+- TEMP_L `SCL` -> I2C1 `PB8`
+- TEMP_L `SDA` -> I2C1 `PB9`
+- TEMP_R `SCL` -> I2C5 `PC10`
+- TEMP_R `SDA` -> I2C5 `PC11`
 
 #### Rapspberry Pi (as slave)
 
-- RPi `SCL` -> I2C2 `PF0`
-- RPi `SDA` -> I2C2 `PF1`
+- RPI `SCL` -> I2C2 `PF0`
+- RPI `SDA` -> I2C2 `PF1`
 
 ### SPI
 
 #### Steering Encoder
 
-- Encoder `SCK` -> SPI4 `PE2`
-- Encoder `MISO` -> SPI4 `PE5`
-- Encoder `MOSI` -> SPI4 `PE6`
-- Encoder `SS` -> GPIO `PE4`
+- ENCODER `SCK` -> SPI4 `PE2`
+- ENCODER `MISO` -> SPI4 `PE5`
+- ENCODER `MOSI` -> SPI4 `PE6`
+- ENCODER `SS` -> GPIO `PE4`
 
 ### CAN
 

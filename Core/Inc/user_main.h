@@ -18,12 +18,27 @@
 #include "stm32_module/stm32_module.h"
 
 // project include
+#include "dashboard_controller.h"
 #include "front_box_can.h"
 #include "project_def.h"
+#include "sensor_reader.h"
+#include "status_controller.h"
+#include "torque_controller.h"
 
 /* Exported variable ---------------------------------------------------------*/
-extern FrontBoxCan front_box_can;
+// stm32_module
+extern ButtonMonitor button_monitor;
 extern ErrorHandler error_handler;
+extern LedController led_controller;
+
+// project
+extern DashboardController dashboard_controller;
+extern FrontBoxCan front_box_can;
+extern SensorReader sensor_reader;
+extern StatusController status_controller;
+extern TorqueController torque_controller;
+
+extern TaskHandle_t freertos_stats_task_handle;
 
 /* Entry point ---------------------------------------------------------------*/
 /**
@@ -31,11 +46,6 @@ extern ErrorHandler error_handler;
  * @retval None
  */
 void user_init();
-
-/* Task control --------------------------------------------------------------*/
-extern uint32_t freertos_stats_task_buffer[FREERTOS_STATS_TASK_STACK_SIZE];
-extern StaticTask_t freertos_stats_task_cb;
-extern TaskHandle_t freertos_stats_task_handle;
 
 /* Task implementation -------------------------------------------------------*/
 /**

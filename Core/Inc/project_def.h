@@ -9,61 +9,100 @@
 
 /* project config ------------------------------------------------------------*/
 // freertos stack size
-#define DASHBOARD_TASK_STACK_SIZE 128
-#define STATUS_CONTROLLER_TASK_STACK_SIZE 256
 #define FREERTOS_STATS_TASK_STACK_SIZE 256
-#define TORQUE_CONTROLLER_TASK_STACK_SIZE 256
+
+// fsae rule
+#define PEDAL_PLAUSIBILITY_CHECK_APPS_THRESHOLD 0.25F
+
+// vehicle parameter
+/// @brief Moror forward direction bit for sending command to inverter.
+#define MOTOR_FORWARD 0
+
+/// @brief Moror reverse direction bit for sending command to inverter.
+#define MOTOR_REVERSE 1
+
+/// @brief Maximum torque at normal gear in [N * m].
+#define MAXIMUM_TORQUE_NORMAL_GEAR 80.0F
+
+/// @brief Maximum torque in high gear in [N * m].
+#define MAXIMUM_TORQUE_HIGH_GEAR 134.0F
+
+/// @brief Threshold for motor spped when lower, trigger soft start in [RPM].
+#define SOFT_START_SPEED_THRESHOLD 60.0F
+
+/// @brief Torque slope for soft start [N * m / s].
+#define SOFT_START_TORQUE_SLOPE 10.0F
+
+/// @brief Torque output starting point when triggering soft start [N * m].
+#define SOFT_START_TORQUE_STARTING_POINT 5.0F
+
+/// @brief Miniumum safe battery voltage in [V].
+#define MINIUMUM_BATTERY_VOLTAGE 250
 
 /* module config -------------------------------------------------------------*/
-// button
+/* button --------------------------------------------------------------------*/
+#define NUM_BUTTON_BUILTIN 1
+#define NUM_BUTTON_USER 1
+#define NUM_GEAR 2
+#define NUM_MICRO 2
+#define NUM_BUTTON (NUM_BUTTON_BUILTIN + NUM_BUTTON_USER + NUM_GEAR + NUM_MICRO)
 
-// led
+// built in button
+#define BUTTON_BUILTIN 0
 
-/* gpio config ---------------------------------------------------------------*/
-// button
-#define BUTTON_BUILTIN_PORT B1_GPIO_Port
-#define BUTTON_BUILTIN_PIN B1_Pin
+// user button
+#define BUTTON_USER_BASE (NUM_BUTTON_BUILTIN + NUM_BUTTON_BUILTIN)
+#define BUTTON_USER(X) (BUTTON_USER_BASE + X)
 
-#define BUTTON_RTD_PORT GPIOE
-#define BUTTON_RTD_PIN GPIO_PIN_15
-#define BUTTON_GEAR1_PORT GPIOE
-#define BUTTON_GEAR1_PIN GPIO_PIN_8
-#define BUTTON_GEAR2_PORT GPIOE
-#define BUTTON_GEAR2_PIN GPIO_PIN_12
-#define BUTTON_GEAR3_PORT GPIOE
-#define BUTTON_GEAR3_PIN GPIO_PIN_10
+#define BUTTON_RTD BUTTON_USER(0)
+
+// gear
+#define GEAR_BASE (BUTTON_USER_BASE + NUM_BUTTON_USER)
+#define GEAR(X) (GEAR_BASE + X)
+
+#define GEAR_HIGH GEAR(0)
+#define GEAR_REVERSE GEAR(1)
 
 // microswitch
-#define MICRO_BSE_PORT GPIOF
-#define MICRO_BSE_PIN GPIO_PIN_2
-#define MICRO_APPS_PORT GPIOE
-#define MICRO_APPS_PIN GPIO_PIN_9
+#define MICRO_BASE (GEAR_BASE + NUM_GEAR)
+#define MICRO(X) (MICRO_BASE + X)
 
-// led
-#define LED_BUILTIN_GREEN_PORT LED_GREEN_GPIO_Port
-#define LED_BUILTIN_GREEN_PIN LED_GREEN_Pin
-#define LED_BUILTIN_YELLOW_PORT LED_YELLOW_GPIO_Port
-#define LED_BUILTIN_YELLOW_PIN LED_YELLOW_Pin
-#define LED_BUILTIN_RED_PORT LED_RED_GPIO_Port
-#define LED_BUILTIN_RED_PIN LED_RED_Pin
+#define MICRO_APPS MICRO(0)
+#define MICRO_BSE MICRO(1)
 
-#define LED_WARN_PORT GPIOC
-#define LED_WARN_PIN GPIO_PIN_9
-#define LED_ERROR_PORT GPIOC
-#define LED_ERROR_PIN GPIO_PIN_12
-#define LED_CAN_PORT GPIOG
-#define LED_CAN_PIN GPIO_PIN_2
-#define LED_RESERVED_PORT GPIOG
-#define LED_RESERVED_PIN GPIO_PIN_3
+/* led (plus siren) ----------------------------------------------------------*/
+#define NUM_LED_BUILTIN 3
+#define NUM_LED_ONBOARD 4
+#define NUM_LED_USER 3
+#define NUM_SIREN 1
+#define NUM_LED (NUM_LED_BUILTIN + NUM_LED_ONBOARD + NUM_LED_USER + NUM_SIREN)
 
-#define LED_VCU_PORT GPIOE
-#define LED_VCU_PIN GPIO_PIN_7
-#define LED_RTD_PORT GPIOA
-#define LED_RTD_PIN GPIO_PIN_0
-#define LED_GEAR_PORT GPIOE
-#define LED_GEAR_PIN GPIO_PIN_13
+// built in led
+#define LED_BUILTIN_BASE 0
+#define LED_BUILTIN(X) (LED_BUILTIN_BASE + X)
 
-#define RTD_SIREN_PORT GPIOD
-#define RTD_SIREN_PIN GPIO_PIN_0
+#define LED_BUILTIN_GREEN LED_BUILTIN(0)
+#define LED_BUILTIN_YELLOW LED_BUILTIN(1)
+#define LED_BUILTIN_RED LED_BUILTIN(2)
+
+// onboard led
+#define LED_ONBOARD_BASE (LED_BUILTIN_BASE + NUM_LED_BUILTIN)
+#define LED_ONBOARD(X) (LED_ONBOARD_BASE + X)
+
+#define LED_WARN LED_ONBOARD(0)
+#define LED_ERROR LED_ONBOARD(1)
+#define LED_CAN_TX LED_ONBOARD(2)
+#define LED_CAN_RX LED_ONBOARD(3)
+
+// user led
+#define LED_USER_BASE (LED_ONBOARD_BASE + NUM_LED_ONBOARD)
+#define LED_USER(X) (LED_USER_BASE + X)
+
+#define LED_VCU LED_USER(0)
+#define LED_RTD LED_USER(1)
+#define LED_GEAR LED_USER(2)
+
+// siren
+#define SIREN_RTD (LED_USER_BASE + NUM_LED_USER)
 
 #endif  // PROJECT_DEF

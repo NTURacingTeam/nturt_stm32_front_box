@@ -2,6 +2,7 @@
 
 // glibc
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -16,7 +17,7 @@
 #include "stm32_module/stm32_module.h"
 
 // can_config include
-#include "nturt_can_config.h"
+#include "nturt_can_config_front_sensor-binutil.h"
 #include "nturt_can_config_vcu-binutil.h"
 #include "nturt_can_config_vcu_hp-binutil.h"
 
@@ -26,17 +27,20 @@
 
 /* Exported variable ---------------------------------------------------------*/
 // c-coderdbc can singal struct
+__dtcmram nturt_can_config_front_sensor_tx_t can_front_sensor_tx;
 __dtcmram nturt_can_config_vcu_rx_t can_vcu_rx;
 __dtcmram nturt_can_config_vcu_tx_t can_vcu_tx;
 __dtcmram nturt_can_config_vcu_hp_rx_t can_vcu_hp_rx;
 
 // mutex
+__dtcmram SemaphoreHandle_t can_front_sensor_tx_mutex;
 __dtcmram SemaphoreHandle_t can_vcu_rx_mutex;
 __dtcmram SemaphoreHandle_t can_vcu_tx_mutex;
 __dtcmram SemaphoreHandle_t can_vcu_hp_rx_mutex;
 
 /* Static variable -----------------------------------------------------------*/
 // mutex control block
+static __dtcmram StaticSemaphore_t can_front_sensor_mutex_cb;
 static __dtcmram StaticSemaphore_t can_vcu_rx_mutex_cb;
 static __dtcmram StaticSemaphore_t can_vcu_tx_mutex_cb;
 static __dtcmram StaticSemaphore_t can_vcu_hp_rx_mutex_cb;
@@ -46,6 +50,10 @@ static bool tx_error = false;
 static volatile bool rx_warn = false, rx_error = false;
 
 /* virtual function redirection ----------------------------------------------*/
+ModuleRet FrontBoxCan_start(FrontBoxCan* const self) {
+  return self->super_.super_.vptr_->start(&self->super_.super_);
+}
+
 ModuleRet FrontBoxCan_configure(FrontBoxCan* const self) {
   return self->super_.vptr_->configure(&self->super_);
 }
@@ -121,6 +129,8 @@ ModuleRet __FrontBoxCan_configure(CanTransceiver* const self) {
   nturt_can_config_vcu_Check_Receive_Timeout_Init(&can_vcu_rx);
 
   // mutex for can signal struct
+  can_front_sensor_tx_mutex =
+      xSemaphoreCreateMutexStatic(&can_front_sensor_mutex_cb);
   can_vcu_rx_mutex = xSemaphoreCreateMutexStatic(&can_vcu_rx_mutex_cb);
   can_vcu_tx_mutex = xSemaphoreCreateMutexStatic(&can_vcu_tx_mutex_cb);
   can_vcu_hp_rx_mutex = xSemaphoreCreateMutexStatic(&can_vcu_hp_rx_mutex_cb);
@@ -134,6 +144,8 @@ ModuleRet __FrontBoxCan_receive(CanTransceiver* const self,
                                 const uint8_t dlc, const uint8_t* const data) {
   (void)self;
   (void)is_extended;
+
+  LedController_blink(&led_controller, LED_CAN_RX, 10);
 
   xSemaphoreTake(can_vcu_rx_mutex, portMAX_DELAY);
   nturt_can_config_vcu_Receive(&can_vcu_rx, data, id, dlc);
@@ -149,6 +161,8 @@ ModuleRet __FrontBoxCan_receive_hp(CanTransceiver* const self,
                                    const uint8_t* const data) {
   (void)self;
   (void)is_extended;
+
+  LedController_blink(&led_controller, LED_CAN_RX, 10);
 
   xSemaphoreTake(can_vcu_hp_rx_mutex, portMAX_DELAY);
   nturt_can_config_vcu_hp_Receive(&can_vcu_hp_rx, data, id, dlc);
@@ -171,6 +185,10 @@ ModuleRet __FrontBoxCan_periodic_update(CanTransceiver* const self,
   nturt_can_config_vcu_hp_Check_Receive_Timeout(&can_vcu_hp_rx);
   xSemaphoreGive(can_vcu_hp_rx_mutex);
 
+  xSemaphoreTake(can_front_sensor_tx_mutex, portMAX_DELAY);
+  nturt_can_config_front_sensor_Transmit(&can_front_sensor_tx);
+  xSemaphoreGive(can_front_sensor_tx_mutex);
+
   xSemaphoreTake(can_vcu_tx_mutex, portMAX_DELAY);
   nturt_can_config_vcu_Transmit(&can_vcu_tx);
   xSemaphoreGive(can_vcu_tx_mutex);
@@ -191,7 +209,19 @@ void FrontBoxCan_ctor(FrontBoxCan* self, CanHandle* const can_handle) {
   self->super_.vptr_ = &vtbl;
 }
 
-/* Static and callback function ----------------------------------------------*/
+/* member function -----------------------------------------------------------*/
+inline ModuleRet FrontBoxCan_transmit(FrontBoxCan* const self,
+                                      const bool is_extended, const uint32_t id,
+                                      const uint8_t dlc, uint8_t* const data) {
+  LedController_blink(&led_controller, LED_CAN_TX, 10);
+  return CanTransceiver_transmit(&self->super_, is_extended, id, dlc, data);
+}
+
+/* Exported function ---------------------------------------------------------*/
+
+/* Static function -----------------------------------------------------------*/
+
+/* Callback function ---------------------------------------------------------*/
 // coderdbc callback function for getting current time in ms
 uint32_t __get__tick__() { return get_10us() / 100; }
 
@@ -204,24 +234,21 @@ void __alert_reception_timeout__(uint32_t msgid, uint32_t lastcyc) {
       if ((get_10us() / 100 - lastcyc) < 1000) {
         if (!rx_warn) {
           rx_warn = true;
-          ErrorHandler_write_error(&error_handler,
-                                   ERROR_CODE_CAN_RECEIVE_TIMEOUT_WARN,
-                                   ERROR_OPTION_SET);
+          ErrorHandler_write_error(
+              &error_handler, ERROR_CODE_CAN_RECEIVE_TIMEOUT_WARN, ERROR_SET);
           rx_warn = true;
         }
       } else if (!rx_error) {
         rx_error = true;
-        ErrorHandler_write_error(&error_handler,
-                                 ERROR_CODE_CAN_RECEIVE_TIMEOUT_ERROR,
-                                 ERROR_OPTION_SET);
+        ErrorHandler_write_error(
+            &error_handler, ERROR_CODE_CAN_RECEIVE_TIMEOUT_ERROR, ERROR_SET);
       }
       break;
   }
 }
 
 // coderdbc callback function for sending can message
-int inline __send_can_message__(uint32_t msgid, uint8_t ide, uint8_t* d,
+inline int __send_can_message__(uint32_t msgid, uint8_t ide, uint8_t* d,
                                 uint8_t len) {
-  return CanTransceiver_transmit((CanTransceiver*)&front_box_can, ide, msgid,
-                                 len, d);
+  return FrontBoxCan_transmit(&front_box_can, ide, msgid, len, d);
 }
