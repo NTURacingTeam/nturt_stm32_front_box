@@ -120,7 +120,6 @@ void pedal_handler() {
             ulTaskNotifyValueClear(NULL, (FLAG_ADC1_FINISH | FLAG_ADC3_FINISH));
         }
 
-        //TODO: safety checks
         {
             float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
             if(apps1 > 1 || apps1 < 0); //TODO: report error
@@ -131,6 +130,12 @@ void pedal_handler() {
             
             float bse = BSE_transfer_function(adc_dma_buffer.bse);
             if(bse > 1 || bse < 0); //TODO: report error
+            
+            xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
+                pedal.apps1 = apps1;
+                pedal.apps2 = apps2;
+                pedal.bse = bse;
+            xSemaphoreGive(pedal.mutex);
         }
     }
 }
