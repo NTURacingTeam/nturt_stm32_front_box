@@ -40,6 +40,12 @@
 // project include
 #include "project_def.h"
 
+#define MUTEX_TIMEOUT 0x02
+#define ADC_TIMEOUT 0x02
+
+#define FLAG_ADC1_FINISH 0b10
+#define FLAG_ADC3_FINISH 0x100
+
 /**
  * @brief structure to hold the data acquired by DMA
  * 
@@ -49,7 +55,6 @@ typedef struct{
     uint16_t apps2;
     uint16_t bse
 } adc_dma_buffer_t;
-static adc_dma_buffer_t adc_dma_buffer = {0} ;
 
 /**
  * @brief structure to hold the data that is outputed by this function
@@ -70,13 +75,34 @@ typedef struct {
  * 
  */
 void pedal_handler() {
-    
-    //TODO: set the conversion mode for the ADC to not blow up the buffers accidentally
-    HAL_ADC_Start_DMA(&hadc1, &(adc_dma_buffer.apps1), 1);
-    HAL_ADC_Start_DMA(&hadc3, &(adc_dma_buffer.apps2), 2);
+    adc_dma_buffer_t adc_dma_buffer = {0};
+    pedal_data_t pedal = {
+        .apps1 = 0.0,
+        .apps2 = 0.0,
+        .bse = 0.0,
+        .micro_apps = 1,
+        .micro_bse = 1
+        //TODO: set mutex
+        // .mutex = 
+    };
 
-    uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_PORT, MICRO_APPS_PIN);
-    uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_PORT, MICRO_BSE_PORT);
+    while(1) {
+                
+        //TODO: set the conversion mode for the ADC to not blow up the buffers accidentally
+        HAL_ADC_Start_DMA(&hadc1, &(adc_dma_buffer.apps1), 1);
+        HAL_ADC_Start_DMA(&hadc3, &(adc_dma_buffer.apps2), 2);
 
-    return;
+        uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_PORT, MICRO_APPS_PIN);
+        uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_PORT, MICRO_BSE_PORT);
+
+        xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
+            pedal.micro_apps = micro_apps;
+            pedal.micro_bse = micro_bse;
+        xSemaphoreGive(pedal.mutex);
+
+        uint32_t wait_flag = 0U;
+        xTaskNotifyWait(0, 0, &wait_flag, pdMS_TO_TICKS(ADC_TIMEOUT));
+        //TODO clear flags and check if both done or one done
+        //TODO safety checks
+    }
 }
