@@ -94,6 +94,7 @@ void pedal_handler() {
         //TODO: set mutex
         // .mutex = 
     };
+    uint32_t pending_notifications = 0U;
 
     while(1) {
                 
@@ -111,16 +112,25 @@ void pedal_handler() {
 
         //wait for both flags to be set
         {    
-            uint32_t wait_flag = 0U;
+            uint32_t flag_buf = 0U;
+            uint32_t flag_gotten = 0U;
             TickType_t t0 = xTaskGetTickCount();
             //if either of which is not set
             do {
-                BaseType_t Wait_result = xTaskNotifyWait(0, 0, &wait_flag, pdMS_TO_TICKS(ADC_TIMEOUT));
+                BaseType_t Wait_result = xTaskNotifyWait(0, 0xFFFFFFFFUL, &flag_buf, pdMS_TO_TICKS(ADC_TIMEOUT));
+
                 if(xTaskGetTickCount() - t0 >= ADC_TIMEOUT || Wait_result == pdFALSE) {
                     //TODO: report error
                 }
-            } while(~wait_flag & (FLAG_ADC1_FINISH | FLAG_ADC3_FINISH));
-            ulTaskNotifyValueClear(NULL, (FLAG_ADC1_FINISH | FLAG_ADC3_FINISH));
+
+                flag_gotten |= flag_buf;
+
+                uint32_t otherflags = flag_buf & ~(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH);
+                if (otherflags) {
+                    pending_notifications |= otherflags;
+                }
+
+            } while(~flag_gotten & (FLAG_ADC1_FINISH | FLAG_ADC3_FINISH));
         }
 
         {
