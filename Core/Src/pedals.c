@@ -40,6 +40,9 @@
 // project include
 #include "project_def.h"
 
+//module include
+#include "stm32_module/stm32_module.h"
+
 #define MUTEX_TIMEOUT 0x02
 #define ADC_TIMEOUT 0x02
 
@@ -121,15 +124,17 @@ void pedal_handler() {
         }
 
         {
+            //TODO: another error handler for implausibility
             float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
-            if(apps1 > 1 || apps1 < 0); //TODO: report error
+            if(apps1 > 1 || apps1 < 0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+
             float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
-            if(apps2 > 1 || apps2 < 0); //TODO: report error
-            if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1); //TODO: report error
-            
+            if(apps2 > 1 || apps2 < 0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+
+            if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
             
             float bse = BSE_transfer_function(adc_dma_buffer.bse);
-            if(bse > 1 || bse < 0); //TODO: report error
+            if(bse > 1 || bse < 0); ErrorHandler_write_error(&Error_Handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
             
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 pedal.apps1 = apps1;
