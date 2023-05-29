@@ -19,9 +19,11 @@
  * If the 2 APPS deviate for more than 10 %, error is reported
  * 
  * This function is executed periodically, and the process is:
- * calls the ADC and DMA to read the numbers automatically
- * check if the numbers are out of bounds
- * 
+ * 1. calls the ADC and DMA to read the numbers automatically
+ * 2. check if the numbers are out of bounds
+ * 3. (optional) DSP filter the readings
+ * 4. normalize the reading to 0 and 1
+ * 5. push the new numbers onto a shared resource
  */
 
 // glibc include
@@ -36,3 +38,4 @@
 
 // project include
 #include "project_def.h"
+
