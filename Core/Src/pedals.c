@@ -46,6 +46,12 @@
 #define FLAG_ADC1_FINISH 0b10
 #define FLAG_ADC3_FINISH 0b100
 
+//private functions
+static inline float APPS1_transfer_function(uint16_t reading);
+static inline float APPS2_transfer_function (uint16_t reading);
+static inline float BSE_transfer_function(uint16_t reading);
+#define OUT_OF_BOUNDS_MARGIN 0.05
+
 /**
  * @brief structure to hold the data acquired by DMA
  * 
@@ -100,17 +106,61 @@ void pedal_handler() {
             pedal.micro_bse = micro_bse;
         xSemaphoreGive(pedal.mutex);
 
-        uint32_t wait_flag = 0U;
-        TickType_t t0 = xTaskGetTickCount();
-        //if either of which is not set
-        do {
-            BaseType_t Wait_result = xTaskNotifyWait(0, 0, &wait_flag, pdMS_TO_TICKS(ADC_TIMEOUT));
-            if(xTaskGetTickCount() - t0 >= ADC_TIMEOUT || Wait_result == pdFALSE) {
-                //TODO: report error
-            }
-        } while(~wait_flag & (FLAG_ADC1_FINISH | FLAG_ADC3_FINISH));
-    
-        //TODO safety checks
-        
+        //wait for both flags to be set
+        {    
+            uint32_t wait_flag = 0U;
+            TickType_t t0 = xTaskGetTickCount();
+            //if either of which is not set
+            do {
+                BaseType_t Wait_result = xTaskNotifyWait(0, 0, &wait_flag, pdMS_TO_TICKS(ADC_TIMEOUT));
+                if(xTaskGetTickCount() - t0 >= ADC_TIMEOUT || Wait_result == pdFALSE) {
+                    //TODO: report error
+                }
+            } while(~wait_flag & (FLAG_ADC1_FINISH | FLAG_ADC3_FINISH));
+            ulTaskNotifyValueClear(NULL, (FLAG_ADC1_FINISH | FLAG_ADC3_FINISH));
+        }
+
+        //TODO: safety checks
+        {
+            float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
+            if(apps1 > 1 || apps1 < 0); //TODO: report error
+            float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
+            if(apps2 > 1 || apps2 < 0); //TODO: report error
+            if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1); //TODO: report error
+            
+            
+            float bse = BSE_transfer_function(adc_dma_buffer.bse);
+            if(bse > 1 || bse < 0); //TODO: report error
+        }
     }
+}
+
+/**
+ * @brief transfer function for the first APPS
+ * 
+ * @param reading the 12 bit value read from the ADC
+ * @return float the normalized read value spanning from 0 to 1
+ * 
+ * The detailed description about the transfer function can be found here:
+ * https://hackmd.io/@nturacing/ByOF6I5T9/%2F2Jgh0ieyS0mc_r-6pHKQyQ
+ */
+static inline float APPS1_transfer_function(uint16_t reading) {
+    float buf = (reading-860)/(3891-860);
+    if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
+    if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
+    return buf;
+}
+
+static inline float APPS2_transfer_function (uint16_t reading) {
+    float buf = (reading*2-860)/(3891-860);
+    if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
+    if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
+    return buf;
+}
+
+static inline float BSE_transfer_function(uint16_t reading) {
+    float buf = (reading-860)/(3891-860);
+    if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
+    if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
+    return buf;
 }
