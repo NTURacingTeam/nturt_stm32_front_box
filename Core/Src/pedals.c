@@ -44,7 +44,7 @@
 #define ADC_TIMEOUT 0x02
 
 #define FLAG_ADC1_FINISH 0b10
-#define FLAG_ADC3_FINISH 0x100
+#define FLAG_ADC3_FINISH 0b100
 
 /**
  * @brief structure to hold the data acquired by DMA
@@ -101,8 +101,16 @@ void pedal_handler() {
         xSemaphoreGive(pedal.mutex);
 
         uint32_t wait_flag = 0U;
-        xTaskNotifyWait(0, 0, &wait_flag, pdMS_TO_TICKS(ADC_TIMEOUT));
-        //TODO clear flags and check if both done or one done
+        TickType_t t0 = xTaskGetTickCount();
+        //if either of which is not set
+        do {
+            BaseType_t Wait_result = xTaskNotifyWait(0, 0, &wait_flag, pdMS_TO_TICKS(ADC_TIMEOUT));
+            if(xTaskGetTickCount() - t0 >= ADC_TIMEOUT || Wait_result == pdFALSE) {
+                //TODO: report error
+            }
+        } while(~wait_flag & (FLAG_ADC1_FINISH | FLAG_ADC3_FINISH));
+    
         //TODO safety checks
+        
     }
 }
