@@ -64,11 +64,16 @@ static inline float BSE_transfer_function(uint16_t reading);
  * 
  */
 typedef struct{
+    //TODO: organize the buffer space and the peripheral settings since other sensors uses ADC as well
     uint16_t apps1;
     uint16_t apps2;
     uint16_t bse
 } adc_dma_buffer_t;
 
+/**
+ * @brief global singleton resource that stores the current state of the pedal sensors
+ * 
+ */
 pedal_data_t pedal = {
     .apps1 = 0.0,
     .apps2 = 0.0,
@@ -133,6 +138,14 @@ void sensor_handler(void* argument) {
                 pedal.bse = bse;
             xSemaphoreGive(pedal.mutex);
         }
+    }
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
+    if(hadc == &hadc1) {
+        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC1_FINISH, eSetBits, NULL);
+    } else if(hadc == &hadc3) {
+        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC3_FINISH, eSetBits, NULL);
     }
 }
 
