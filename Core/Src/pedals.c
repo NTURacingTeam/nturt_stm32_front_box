@@ -43,6 +43,9 @@
 //module include
 #include "stm32_module/stm32_module.h"
 
+//own include
+#include "pedals.h"
+
 #define MUTEX_TIMEOUT 0x02
 #define ADC_TIMEOUT 0x02
 
@@ -65,18 +68,16 @@ typedef struct{
     uint16_t bse
 } adc_dma_buffer_t;
 
-/**
- * @brief structure to hold the data that is outputed by this function
- * 
- */
-typedef struct {
-    float apps1;
-    float apps2;
-    float bse;
-    uint8_t micro_apps;
-    uint8_t micro_bse;
-    SemaphoreHandle_t mutex
-} pedal_data_t;
+
+
+pedal_data_t pedal = {
+    .apps1 = 0.0,
+    .apps2 = 0.0,
+    .bse = 0.0,
+    .micro_apps = 1,
+    .micro_bse = 1
+    //mutex is intitialized in user_main.c along with everything freertos
+};
 
 /**
  * @brief handler function for the data acquisition task of the pedal sensors
@@ -85,15 +86,7 @@ typedef struct {
  */
 void pedal_handler() {
     adc_dma_buffer_t adc_dma_buffer = {0};
-    pedal_data_t pedal = {
-        .apps1 = 0.0,
-        .apps2 = 0.0,
-        .bse = 0.0,
-        .micro_apps = 1,
-        .micro_bse = 1
-        //TODO: set mutex
-        // .mutex = 
-    };
+    
     uint32_t pending_notifications = 0U;
 
     while(1) {
@@ -136,10 +129,10 @@ void pedal_handler() {
         {
             //TODO: another error handler for implausibility
             float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
-            if(apps1 > 1 || apps1 < 0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+            if(apps1 > 1.0 || apps1 < 0.0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
 
             float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
-            if(apps2 > 1 || apps2 < 0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+            if(apps2 > 1.0 || apps2 < 0.0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
 
             if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
             
