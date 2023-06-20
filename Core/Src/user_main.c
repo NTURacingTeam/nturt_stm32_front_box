@@ -19,6 +19,7 @@
 #include "project_def.h"
 #include "status_controller.h"
 #include "torque_controller.h"
+#include "sensors.h"
 
 /* Exported variable ---------------------------------------------------------*/
 __dtcmram FrontBoxCan front_box_can;
@@ -50,6 +51,16 @@ void user_init() {
       torque_controller_task, "torque_controller_task",
       TORQUE_CONTROLLER_TASK_STACK_SIZE, NULL, TaskPriorityHigh,
       torque_controller_task_buffer, &torque_controller_task_cb);
+  sensors_data_task_handle = xTaskCreateStatic(
+      sensor_handler,
+      "sensors_data_task",
+      SENSOR_DATA_TASK_STACK_SIZE,
+      NULL,
+      TaskPriorityHigh,
+      sensors_data_task_buffer,
+      &sensors_data_task_cb
+  );
+  pedal.mutex = xSemaphoreCreateMutex();
 }
 
 /* Task control --------------------------------------------------------------*/

@@ -68,8 +68,6 @@ typedef struct{
     uint16_t bse
 } adc_dma_buffer_t;
 
-
-
 pedal_data_t pedal = {
     .apps1 = 0.0,
     .apps2 = 0.0,
@@ -79,12 +77,19 @@ pedal_data_t pedal = {
     //mutex is intitialized in user_main.c along with everything freertos
 };
 
+/*task controls*/
+__dtcmram uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
+__dtcmram StaticTask_t sensors_data_task_cb;
+TaskHandle_t sensors_data_task_handle;
+
 /**
  * @brief handler function for the data acquisition task of the pedal sensors
  * @note this function is to be executed periodically
  * 
  */
-void sensor_handler() {
+void sensor_handler(void* argument) {
+    (void)argument;
+
     adc_dma_buffer_t adc_dma_buffer = {0};
     
     uint32_t pending_notifications = 0U;

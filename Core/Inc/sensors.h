@@ -19,4 +19,10 @@ typedef struct {
 
 extern pedal_data_t pedal;
 
+/*task controls*/
+void sensor_handler(void*);
+extern uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
+extern StaticTask_t sensors_data_task_cb;
+extern TaskHandle_t sensors_data_task_handle;
+
 #endif //_SENSORS_H

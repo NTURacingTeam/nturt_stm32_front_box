@@ -13,6 +13,7 @@
 #define STATUS_CONTROLLER_TASK_STACK_SIZE 256
 #define FREERTOS_STATS_TASK_STACK_SIZE 256
 #define TORQUE_CONTROLLER_TASK_STACK_SIZE 256
+#define SENSOR_DATA_TASK_STACK_SIZE 256
 
 /* module config -------------------------------------------------------------*/
 // button
