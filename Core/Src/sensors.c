@@ -53,6 +53,7 @@
 #define FLAG_ADC3_FINISH 0b100
 
 //private functions
+static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
 static inline float APPS1_transfer_function(uint16_t reading);
 static inline float APPS2_transfer_function (uint16_t reading);
 static inline float BSE_transfer_function(uint16_t reading);
@@ -88,6 +89,8 @@ TaskHandle_t sensors_data_task_handle;
  * 
  */
 void sensor_handler(void* argument) {
+    //TODO: handle every return status of FreeRTOS and HAL API
+
     (void)argument;
 
     adc_dma_buffer_t adc_dma_buffer = {0};
@@ -109,27 +112,7 @@ void sensor_handler(void* argument) {
         xSemaphoreGive(pedal.mutex);
 
         //wait for both flags to be set
-        {    
-            uint32_t flag_buf = 0U;
-            uint32_t flag_gotten = 0U;
-            TickType_t t0 = xTaskGetTickCount();
-            //if either of which is not set
-            do {
-                BaseType_t Wait_result = xTaskNotifyWait(0, 0xFFFFFFFFUL, &flag_buf, pdMS_TO_TICKS(ADC_TIMEOUT));
-
-                if(xTaskGetTickCount() - t0 >= ADC_TIMEOUT || Wait_result == pdFALSE) {
-                    //TODO: report error
-                }
-
-                flag_gotten |= flag_buf;
-
-                uint32_t otherflags = flag_buf & ~(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH);
-                if (otherflags) {
-                    pending_notifications |= otherflags;
-                }
-
-            } while(~flag_gotten & (FLAG_ADC1_FINISH | FLAG_ADC3_FINISH));
-        }
+        wait_for_notif_flags(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH, pdMS_TO_TICKS(ADC_TIMEOUT), &pending_notifications);
 
         {
             //TODO: another error handler for implausibility
@@ -151,6 +134,34 @@ void sensor_handler(void* argument) {
             xSemaphoreGive(pedal.mutex);
         }
     }
+}
+
+/**
+ * @brief wrapper function to wait for specific bits in the task notification
+ * @param target the target that needs to be waited in ticks
+ * @param timeout the timeout
+ * @param gotten all the flags that are set
+ * @return the status of the function
+ */
+BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten) {    
+    uint32_t flag_buf = 0U;
+    uint32_t flag_gotten = 0U;
+    const TickType_t t0 = xTaskGetTickCount();
+    //if either of which is not set
+    do {
+        BaseType_t Wait_result = xTaskNotifyWait(0, 0xFFFFFFFFUL, &flag_buf, timeout);
+        flag_gotten |= flag_buf;
+        *gotten = flag_gotten;
+
+        if(xTaskGetTickCount() - t0 >= timeout || Wait_result == pdFALSE) {
+            return pdFALSE;
+        }
+
+    } while(~flag_gotten & target);
+
+    //remove the gotten flags if the flags are correctly received
+    *gotten &= ~(target);
+    return pdTRUE;
 }
 
 /**
