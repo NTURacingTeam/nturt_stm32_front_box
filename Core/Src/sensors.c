@@ -49,8 +49,11 @@
 #define MUTEX_TIMEOUT 0x02
 #define ADC_TIMEOUT 0x02
 
-#define FLAG_ADC1_FINISH 0b10
-#define FLAG_ADC3_FINISH 0b100
+#define FLAG_ADC1_FINISH 0x2
+#define FLAG_ADC3_FINISH 0x4
+#define FLAG_READ_PEDAL 0x1000
+#define FLAG_READ_TIRE_TEMP 0x2000
+#define FLAG_READ_SUS 0x4000
 
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
@@ -65,9 +68,11 @@ static inline float BSE_transfer_function(uint16_t reading);
  */
 typedef struct{
     //TODO: organize the buffer space and the peripheral settings since other sensors uses ADC as well
-    uint16_t apps1;
-    uint16_t apps2;
-    uint16_t bse
+    uint16_t apps1; //ADC12 rank1
+    uint16_t travel_r; //ADC12 rank2
+    uint16_t apps2; //ADC3 rank1
+    uint16_t bse; //ADC3 rank2
+    uint16_t travel_l //ADC3 rank3
 } adc_dma_buffer_t;
 
 /**
@@ -90,7 +95,6 @@ TaskHandle_t sensors_data_task_handle;
 
 /**
  * @brief handler function for the data acquisition task of the pedal sensors
- * @note this function is to be executed periodically
  * 
  */
 void sensor_handler(void* argument) {
@@ -103,40 +107,52 @@ void sensor_handler(void* argument) {
     uint32_t pending_notifications = 0U;
 
     while(1) {
-                
-        //TODO: set the conversion mode for the ADC to not blow up the buffers accidentally
-        HAL_ADC_Start_DMA(&hadc1, &(adc_dma_buffer.apps1), 1);
-        HAL_ADC_Start_DMA(&hadc3, &(adc_dma_buffer.apps2), 2);
+        if(!pending_notifications) {
+            //wait for notifications from timer if there are no pending ones
+            (void)xTaskNotifyWait(0, 0xFFFFFFFFUL, &pending_notifications, portMAX_DELAY);
+        }
 
-        uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_PORT, MICRO_APPS_PIN);
-        uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_PORT, MICRO_BSE_PORT);
+        if(pending_notifications & FLAG_READ_PEDAL) {
+            //clear bit
+            pending_notifications &= ~FLAG_READ_PEDAL;
 
-        xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
-            pedal.micro_apps = micro_apps;
-            pedal.micro_bse = micro_bse;
-        xSemaphoreGive(pedal.mutex);
+            //TODO: set the conversion mode for the ADC to not blow up the buffers accidentally
+            HAL_ADC_Start_DMA(&hadc1, &(adc_dma_buffer.apps1), 2);
+            HAL_ADC_Start_DMA(&hadc3, &(adc_dma_buffer.apps2), 3);
 
-        //wait for both flags to be set
-        wait_for_notif_flags(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH, pdMS_TO_TICKS(ADC_TIMEOUT), &pending_notifications);
+            uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_PORT, MICRO_APPS_PIN);
+            uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_PORT, MICRO_BSE_PORT);
 
-        {
-            //TODO: another error handler for implausibility
-            float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
-            if(apps1 > 1.0 || apps1 < 0.0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
-
-            float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
-            if(apps2 > 1.0 || apps2 < 0.0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
-
-            if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
-            
-            float bse = BSE_transfer_function(adc_dma_buffer.bse);
-            if(bse > 1 || bse < 0); ErrorHandler_write_error(&Error_Handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
-            
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
-                pedal.apps1 = apps1;
-                pedal.apps2 = apps2;
-                pedal.bse = bse;
+                pedal.micro_apps = micro_apps;
+                pedal.micro_bse = micro_bse;
             xSemaphoreGive(pedal.mutex);
+
+            //wait for both flags to be set
+            if (wait_for_notif_flags(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH, pdMS_TO_TICKS(ADC_TIMEOUT), &pending_notifications) != pdTRUE) {
+                //TODO: edge case where only one or neither flags set
+                pending_notifications &= ~(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH);
+            }
+
+            {
+                //TODO: another error handler for implausibility
+                float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
+                if(apps1 > 1.0 || apps1 < 0.0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+
+                float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
+                if(apps2 > 1.0 || apps2 < 0.0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+
+                if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+                
+                float bse = BSE_transfer_function(adc_dma_buffer.bse);
+                if(bse > 1 || bse < 0); ErrorHandler_write_error(&Error_Handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
+                
+                xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
+                    pedal.apps1 = apps1;
+                    pedal.apps2 = apps2;
+                    pedal.bse = bse;
+                xSemaphoreGive(pedal.mutex);
+            }
         }
     }
 }
