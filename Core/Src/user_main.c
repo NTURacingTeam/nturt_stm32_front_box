@@ -61,6 +61,15 @@ void user_init() {
       &sensors_data_task_cb
   );
   pedal.mutex = xSemaphoreCreateMutex();
+  sensor_timer_handle = xTimerCreateStatic(
+    "sensors_data_timer",
+    pdMS_TO_TICKS(SENSOR_TIMER_PERIOD),
+    pdTRUE,
+    0,
+    sensor_timer_callback,
+    &sensor_timer_buffer
+  );
+  xTimerStart(sensor_timer_handle, 0); //TODO: case where timer did not start
 }
 
 /* Task control --------------------------------------------------------------*/

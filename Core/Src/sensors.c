@@ -93,6 +93,15 @@ __dtcmram uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
 __dtcmram StaticTask_t sensors_data_task_cb;
 TaskHandle_t sensors_data_task_handle;
 
+/*timer controls*/
+__dtcmram StaticTimer_t sensor_timer_buffer;
+TimerHandle_t sensor_timer_handle;
+
+void sensor_timer_callback(TimerHandle_t timer) {
+    xTaskNotify(sensors_data_task_handle, FLAG_READ_PEDAL, eSetBits);
+}
+
+
 /**
  * @brief handler function for the data acquisition task of the pedal sensors
  * 
@@ -136,6 +145,7 @@ void sensor_handler(void* argument) {
 
             {
                 //TODO: another error handler for implausibility
+                //TODO: how to use errorhandler API
                 float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
                 if(apps1 > 1.0 || apps1 < 0.0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
 

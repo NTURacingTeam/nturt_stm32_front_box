@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "semphr.h"
+#include "timers.h"
 
 /**
  * @brief structure to hold the data that is outputed by this function
@@ -24,5 +25,10 @@ void sensor_handler(void*);
 extern uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
 extern StaticTask_t sensors_data_task_cb;
 extern TaskHandle_t sensors_data_task_handle;
+
+/*sensor timer*/
+void sensor_timer_callback(TimerHandle_t);
+extern StaticTimer_t sensor_timer_buffer;
+extern TimerHandle_t sensor_timer_handle;
 
 #endif //_SENSORS_H

@@ -15,6 +15,9 @@
 #define TORQUE_CONTROLLER_TASK_STACK_SIZE 256
 #define SENSOR_DATA_TASK_STACK_SIZE 256
 
+// freertos timer info
+#define SENSOR_TIMER_PERIOD 5
+
 /* module config -------------------------------------------------------------*/
 // button
 
