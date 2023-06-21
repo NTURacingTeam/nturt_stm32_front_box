@@ -68,7 +68,7 @@ static inline float APPS1_transfer_function(const uint16_t reading);
 static inline float APPS2_transfer_function (const uint16_t reading);
 static inline float BSE_transfer_function(const uint16_t reading);
 #define OUT_OF_BOUNDS_MARGIN 0.05
-static inline int16_t tire_temp_transfer_function(const uint8_t high, const uint8_t low);
+static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
 
 /**
  * @brief structure to hold the data acquired by DMA
@@ -103,8 +103,8 @@ travel_data_t travel_sensor = {
 };
 
 tire_temp_data_t tire_temp_sensor = {
-    .left = {0},
-    .right = {0}
+    .left = {0.0},
+    .right = {0.0}
     //mutex is initialized in user_main.c along with everything freertos
 };
 
@@ -300,8 +300,8 @@ static inline float BSE_transfer_function(const uint16_t reading) {
     return buf;
 }
 
-static inline int16_t tire_temp_transfer_function(const uint8_t highByte, const uint8_t lowByte) {
-    return ((int16_t)highByte) << 8 + ((int16_t)lowByte);
+static inline float tire_temp_transfer_function(const uint8_t highByte, const uint8_t lowByte) {
+    return (float)(((int16_t)highByte) << 8 + ((int16_t)lowByte))/5;
 }
 
 /**

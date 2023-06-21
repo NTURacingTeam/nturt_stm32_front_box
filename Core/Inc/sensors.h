@@ -29,8 +29,8 @@ typedef struct {
 extern travel_data_t travel_sensor;
 
 typedef struct {
-    int16_t left[8];
-    int16_t right[8];
+    float left[8];
+    float right[8];
     SemaphoreHandle_t mutex;
 } tire_temp_data_t;
 
