@@ -73,7 +73,7 @@ typedef struct{
     uint16_t travel_r; //ADC12 rank2
     uint16_t apps2; //ADC3 rank1
     uint16_t bse; //ADC3 rank2
-    uint16_t travel_l //ADC3 rank3
+    uint16_t travel_l; //ADC3 rank3
 } adc_dma_buffer_t;
 
 /**
@@ -140,7 +140,7 @@ void sensor_handler(void* argument) {
             HAL_ADC_Start_DMA(&hadc3, &(adc_dma_buffer.apps2), 3);
 
             const uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_PORT, MICRO_APPS_PIN);
-            const uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_PORT, MICRO_BSE_PORT);
+            const uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_PORT, MICRO_BSE_PIN);
 
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 pedal.micro_apps = micro_apps;
@@ -165,7 +165,7 @@ void sensor_handler(void* argument) {
                 if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
                 
                 const float bse = BSE_transfer_function(adc_dma_buffer.bse);
-                if(bse > 1 || bse < 0); ErrorHandler_write_error(&Error_Handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
+                if(bse > 1 || bse < 0) ErrorHandler_write_error(&error_handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
                 
                 xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                     pedal.apps1 = apps1;
