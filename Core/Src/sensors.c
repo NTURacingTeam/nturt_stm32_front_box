@@ -37,6 +37,7 @@
 #include "FreeRTOS.h"
 // #include "task.h"
 #include "semphr.h"
+#include "timers.h"
 
 // project include
 #include "project_def.h"
@@ -49,12 +50,14 @@
 
 #define MUTEX_TIMEOUT 0x02
 #define ADC_TIMEOUT 0x02
+#define I2C_TIMEOUT 0xFF
 
 #define FLAG_ADC1_FINISH 0x2
 #define FLAG_ADC3_FINISH 0x4
 #define FLAG_READ_PEDAL 0x1000
 #define FLAG_READ_TIRE_TEMP 0x2000
 #define FLAG_READ_SUS 0x4000
+#define FLAG_D6T_STARTUP 0x100000
 
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
@@ -108,22 +111,30 @@ void sensor_timer_callback(TimerHandle_t timer) {
     xTaskNotify(sensors_data_task_handle, FLAG_READ_PEDAL, eSetBits);
 }
 
-
 /**
  * @brief handler function for the data acquisition task of the pedal sensors
  * 
  */
 void sensor_handler(void* argument) {
     //TODO: handle every return status of FreeRTOS and HAL API
-
     (void)argument;
-
+    //variable to store the pending flags that is sent from xTaskNotify TODO: might be able to just leave the data in the 
     uint32_t pending_notifications = 0U;
+
+    /*initialize D6T sensors*/
+    volatile uint8_t i2c_stream_R = {0};
+    volatile uint8_t i2c_stream_L = {0};
+    //first wait for 20ms for the sensors to boot up
+    vTaskDelay(pdMS_TO_TICKS(20));
+    init_D6T(&hi2c5, i2c_stream_R, FLAG_D6T_STARTUP, pending_notifications);
+    init_D6T(&hi2c1, i2c_stream_L, FLAG_D6T_STARTUP, pending_notifications);
+    //wait for 500ms after initialization before starting to query the sensors
+    vTaskDelay(pdMS_TO_TICKS(500));
     
     //start the timer that notifies this task to do stuff
     xTimerStart(sensor_timer_handle, portMAX_DELAY); //TODO: case where timer did not start
 
-    adc_dma_buffer_t adc_dma_buffer = {0};
+    volatile adc_dma_buffer_t adc_dma_buffer = {0};
     
     while(1) {
         if(!pending_notifications) {
@@ -249,4 +260,45 @@ static inline float BSE_transfer_function(const uint16_t reading) {
     if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
     if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
     return buf;
+}
+
+/**
+ * @brief this function initializes the payload data of the i2c addresses and the D6T sensors themselves
+ * 
+ * @param hi2c the i2c handle that handles the i2c communications
+ * @param rawData and array that stores the data to be transmitted and that to be received
+ * @param txThreadFlag the task notification flag used to indicate completion of transfer
+ * @param otherflags the other flags that might be caught when are waiting for the the DMA to complete through FreeRTOS notifications
+ */
+static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags) {
+    //TODO: use the return value to report error
+    //fixed parameters of D6T sensors: address, I2C command to get data, and the startup transmissions
+    const uint8_t D6Taddr = 0b0001010;
+    const uint8_t getCommand = 0x4C;
+    const uint8_t startupCommand[5][4] = {
+        {0x02, 0x00, 0x01, 0xEE},
+        {0x05, 0x90, 0x3A, 0xB8},
+        {0x03, 0x00, 0x03, 0x8B},
+        {0x03, 0x00, 0x07, 0x97},
+        {0x92, 0x00, 0x00, 0xE9}
+    };
+
+    //fill the first 3 bytes of rawData with these data since they will be used in CRC
+    rawData[0] = D6Taddr<<1;
+    rawData[1] = getCommand;
+    rawData[2] = (D6Taddr << 1) + 1;
+
+    //init sensor 
+    if(HAL_I2C_IsDeviceReady(hi2c, D6Taddr << 1, 5, 0xF) == HAL_OK) {
+        for(int i = 0; i<5; i++) {
+            HAL_I2C_Master_Transmit_DMA(hi2c, D6Taddr << 1, startupCommand[i], 4);
+            wait_for_notif_flags(txThreadFlag, I2C_TIMEOUT, &otherflags);
+        }
+    } else {
+        //TODO: report error - cannot connect to sensor
+    }
+}
+
+void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c) {
+    xTaskNotify(sensors_data_task_handle, FLAG_D6T_STARTUP, eSetBits);
 }
