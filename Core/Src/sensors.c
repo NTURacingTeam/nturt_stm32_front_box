@@ -57,9 +57,9 @@
 
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
-static inline float APPS1_transfer_function(uint16_t reading);
-static inline float APPS2_transfer_function (uint16_t reading);
-static inline float BSE_transfer_function(uint16_t reading);
+static inline float APPS1_transfer_function(const uint16_t reading);
+static inline float APPS2_transfer_function (const uint16_t reading);
+static inline float BSE_transfer_function(const uint16_t reading);
 #define OUT_OF_BOUNDS_MARGIN 0.05
 
 /**
@@ -129,8 +129,8 @@ void sensor_handler(void* argument) {
             HAL_ADC_Start_DMA(&hadc1, &(adc_dma_buffer.apps1), 2);
             HAL_ADC_Start_DMA(&hadc3, &(adc_dma_buffer.apps2), 3);
 
-            uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_PORT, MICRO_APPS_PIN);
-            uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_PORT, MICRO_BSE_PORT);
+            const uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_PORT, MICRO_APPS_PIN);
+            const uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_PORT, MICRO_BSE_PORT);
 
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 pedal.micro_apps = micro_apps;
@@ -146,15 +146,15 @@ void sensor_handler(void* argument) {
             {
                 //TODO: another error handler for implausibility
                 //TODO: how to use errorhandler API
-                float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
+                const float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
                 if(apps1 > 1.0 || apps1 < 0.0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
 
-                float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
+                const float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
                 if(apps2 > 1.0 || apps2 < 0.0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
 
                 if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
                 
-                float bse = BSE_transfer_function(adc_dma_buffer.bse);
+                const float bse = BSE_transfer_function(adc_dma_buffer.bse);
                 if(bse > 1 || bse < 0); ErrorHandler_write_error(&Error_Handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
                 
                 xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
@@ -213,21 +213,21 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
  * The detailed description about the transfer function can be found here:
  * https://hackmd.io/@nturacing/ByOF6I5T9/%2F2Jgh0ieyS0mc_r-6pHKQyQ
  */
-static inline float APPS1_transfer_function(uint16_t reading) {
+static inline float APPS1_transfer_function(const uint16_t reading) {
     float buf = (reading-860)/(3891-860);
     if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
     if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
     return buf;
 }
 
-static inline float APPS2_transfer_function (uint16_t reading) {
+static inline float APPS2_transfer_function (const uint16_t reading) {
     float buf = (reading*2-860)/(3891-860);
     if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
     if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
     return buf;
 }
 
-static inline float BSE_transfer_function(uint16_t reading) {
+static inline float BSE_transfer_function(const uint16_t reading) {
     float buf = (reading-860)/(3891-860);
     if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
     if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
