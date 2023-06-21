@@ -69,7 +69,7 @@ static inline float APPS2_transfer_function (const uint16_t reading);
 static inline float BSE_transfer_function(const uint16_t reading);
 #define OUT_OF_BOUNDS_MARGIN 0.05
 static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
-
+void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
 /**
  * @brief structure to hold the data acquired by DMA
  * 
@@ -122,14 +122,14 @@ void sensor_timer_callback(TimerHandle_t timer) {
 
     // we use the timer ID to secretly count how many times have the timer expired
     // and update the tire temp data with also a fix interval
-    uint32_t expire_count = pvTimerGetTimerID(timer);
+    uint32_t expire_count = (uint32_t)pvTimerGetTimerID(timer);
     expire_count++;
-    vTimerSetTimerID(timer, &expire_count);
+    vTimerSetTimerID(timer, (void*)expire_count);
 
-    if(pvTimerGetTimerID(timer) >= TIRE_TEMP_PERIOD/SENSOR_TIMER_PERIOD) {
+    if((uint32_t)pvTimerGetTimerID(timer) >= TIRE_TEMP_PERIOD/SENSOR_TIMER_PERIOD) {
         xTaskNotify(sensors_data_task_handle, FLAG_READ_TIRE_TEMP, eSetBits);
         expire_count = 0;
-        vTimerSetTimerID(timer, expire_count);
+        vTimerSetTimerID(timer, (void*)expire_count);
     }
 }
 
@@ -148,8 +148,8 @@ void sensor_handler(void* argument) {
     volatile uint8_t i2c_stream_L[22] = {0};
     //first wait for 20ms for the sensors to boot up
     vTaskDelay(pdMS_TO_TICKS(20));
-    init_D6T(&hi2c5, i2c_stream_R, FLAG_D6T_STARTUP, pending_notifications);
-    init_D6T(&hi2c1, i2c_stream_L, FLAG_D6T_STARTUP, pending_notifications);
+    init_D6T(&hi2c5, i2c_stream_R, FLAG_D6T_STARTUP, &pending_notifications);
+    init_D6T(&hi2c1, i2c_stream_L, FLAG_D6T_STARTUP, &pending_notifications);
     //wait for 500ms after initialization before starting to query the sensors
     vTaskDelay(pdMS_TO_TICKS(500));
     
@@ -221,7 +221,7 @@ void sensor_handler(void* argument) {
             HAL_I2C_Mem_Read_DMA(&hi2c5, i2c_stream_R[0], i2c_stream_R[1], 1, &(i2c_stream_R[3]), 19);
             HAL_I2C_Mem_Read_DMA(&hi2c1, i2c_stream_L[0], i2c_stream_L[1], 1, &(i2c_stream_L[3]), 19);
             //wait for the DMA to finish TODO: error case where the stuff did not finish
-            wait_for_notif_flags((FLAG_I2C5_FINISH | FLAG_I2C1_FINISH), I2C_TIMEOUT, pending_notifications);
+            wait_for_notif_flags((FLAG_I2C5_FINISH | FLAG_I2C1_FINISH), I2C_TIMEOUT, &pending_notifications);
             //TODO: CRC the data
             xSemaphoreTake(tire_temp_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
             //the transfer function for the temp sensors //TODO: do we record the PTAT on 4 and 5?
@@ -301,7 +301,7 @@ static inline float BSE_transfer_function(const uint16_t reading) {
 }
 
 static inline float tire_temp_transfer_function(const uint8_t highByte, const uint8_t lowByte) {
-    return (float)(((int16_t)highByte) << 8 + ((int16_t)lowByte))/5;
+    return (float)((((int16_t)highByte) << 8) + (int16_t)lowByte)/5;
 }
 
 /**
@@ -312,7 +312,7 @@ static inline float tire_temp_transfer_function(const uint8_t highByte, const ui
  * @param txThreadFlag the task notification flag used to indicate completion of transfer
  * @param otherflags the other flags that might be caught when are waiting for the the DMA to complete through FreeRTOS notifications
  */
-static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags) {
+void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags) {
     //TODO: use the return value to report error
     //fixed parameters of D6T sensors: address, I2C command to get data, and the startup transmissions
     const uint8_t D6Taddr = 0b0001010;
@@ -334,7 +334,7 @@ static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, u
     if(HAL_I2C_IsDeviceReady(hi2c, D6Taddr << 1, 5, 0xF) == HAL_OK) {
         for(int i = 0; i<5; i++) {
             HAL_I2C_Master_Transmit_DMA(hi2c, D6Taddr << 1, startupCommand[i], 4);
-            wait_for_notif_flags(txThreadFlag, I2C_TIMEOUT, &otherflags);
+            wait_for_notif_flags(txThreadFlag, I2C_TIMEOUT, otherflags);
         }
     } else {
         //TODO: report error - cannot connect to sensor
