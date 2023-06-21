@@ -61,6 +61,14 @@ void TorqueController_ctor(TorqueController* const self) {
   // initialize member variable
   self->reverse_gear_ = false;
   self->torque_command_last_ = 0.0F;
+
+  // register button callback
+  ButtonMonitor_register_callback(&button_monitor, GEAR_HIGH,
+                                  TorqueController_gear_high_button_callback,
+                                  (void*)self);
+  ButtonMonitor_register_callback(&button_monitor, GEAR_REVERSE,
+                                  TorqueController_gear_reverse_button_callback,
+                                  (void*)self);
 }
 
 /* member function -----------------------------------------------------------*/
@@ -146,7 +154,7 @@ void TorqueController_task_code(void* const _self) {
       xSemaphoreGive(can_vcu_tx_mutex);
 
     } else {
-      static const INV_Command_Message_t inverter_disable_command = {
+      static const INV_Command_Message_t disable_inverter_command = {
           .VCU_Torque_Command_phys = 0.0F,
           .VCU_Speed_Command = 0,
           .VCU_Direction_Command = MOTOR_FORWARD,
@@ -159,7 +167,7 @@ void TorqueController_task_code(void* const _self) {
 
       // send inverter disable command
       xSemaphoreTake(can_vcu_tx_mutex, portMAX_DELAY);
-      can_vcu_tx.INV_Command_Message = inverter_disable_command;
+      can_vcu_tx.INV_Command_Message = disable_inverter_command;
       xSemaphoreGive(can_vcu_tx_mutex);
     }
 

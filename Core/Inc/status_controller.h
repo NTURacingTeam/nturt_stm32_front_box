@@ -69,7 +69,7 @@ typedef struct status_controller {
   bool pedal_plausibility_;
 
   /// @brief Inverter, BMS and rear box. (Checked by CAN timeout error handler.)
-  bool receive_critical_can_;
+  bool critical_can_rx_;
 
   /// @brief If the status of inverter, bms and rear box is ok.
   bool critical_node_status_;
@@ -77,7 +77,11 @@ typedef struct status_controller {
   /// @brief If inverter DC bus voltage is higher than minium battery voltage.
   bool inverter_voltage_;
 
+  /// @brief Task stack buffer.
   StackType_t task_stack_[STATUS_CONTROLLER_TASK_STACK_SIZE];
+
+  /// @brief Error callback control block.
+  struct error_callback_cb error_callback_cb_;
 } StatusController;
 
 /* constructor ---------------------------------------------------------------*/
@@ -95,6 +99,7 @@ void StatusController_ctor(StatusController* const self);
  *
  * @param[in,out] self The instance of the class.
  * @return ModuleRet Error code.
+ * @note This function is virtual.
  */
 ModuleRet StatusController_start(StatusController* const self);
 
@@ -117,38 +122,20 @@ ModuleRet StatusController_get_status(StatusController* const self,
 ModuleRet StatusController_reset_status(StatusController* const self);
 
 /**
- * @brief Function to handler APPS error.
+ * @brief Function to handle APPS, BSE, critical can rx error.
  *
  * @param[in,out] self The instance of the class.
  * @param[in] error_code Error code.
- * @retval None
+ * @return None
+ * @warning For internal use only.
  */
-void StatusController_apps_error_handler(void* const _self,
-                                         uint32_t error_code);
-
-/**
- * @brief Function to handler BSE error.
- *
- * @param[in,out] self The instance of the class.
- * @param[in] error_code Error code.
- * @retval None
- */
-void StatusController_bse_error_handler(void* const _self, uint32_t error_code);
-
-/**
- * @brief Function to handler apps error.
- *
- * @param[in,out] self The instance of the class.
- * @param[in] error_code Error code.
- * @retval None
- */
-void StatusController_can_error_handler(void* const _self, uint32_t error_code);
+void StatusController_error_handler(void* const _self, uint32_t error_code);
 
 /**
  * @brief Function to run in freertos task.
  *
  * @param[in,out] self The instance of the class.
- * @retval None
+ * @return None
  * @warning For internal use only.
  */
 void StatusController_task_code(void* const _self);

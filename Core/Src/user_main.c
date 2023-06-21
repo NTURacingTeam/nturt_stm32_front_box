@@ -38,6 +38,7 @@ __dtcmram TaskHandle_t freertos_stats_task_handle;
 /* Static variable -----------------------------------------------------------*/
 // stm32_module
 static __dtcmram struct button_cb button_cb[NUM_BUTTON];
+static __dtcmram struct error_callback_cb auxiliary_error_callback_cb;
 static __dtcmram struct led_cb led_cb[NUM_LED];
 
 // project
@@ -46,8 +47,28 @@ static __dtcmram uint32_t
     freertos_stats_task_buffer[FREERTOS_STATS_TASK_STACK_SIZE];
 
 /* Static function prototype -------------------------------------------------*/
+/**
+ * @brief Function to initialize button module.
+ *
+ * @return None.
+ */
 static void button_module_init();
+
+/**
+ * @brief Function to initialize led module.
+ *
+ * @return None.
+ */
 static void led_module_init();
+
+/**
+ * @brief Function to augment the function of error handler when error occurred.
+ *
+ * @param[in] argument Not used.
+ * @param[in] error_code The error code.
+ * @return None.
+ */
+static void auxiliary_error_handler(void *const argument, uint32_t error_code);
 
 /* Entry point ---------------------------------------------------------------*/
 void user_init() {
@@ -72,6 +93,12 @@ void user_init() {
   TorqueController_ctor(&torque_controller);
   TorqueController_start(&torque_controller);
 
+  // register error callback function
+  ErrorHandler_add_error_callback(&error_handler, &auxiliary_error_callback_cb,
+                                  auxiliary_error_handler, NULL,
+                                  ERROR_CODE_ALL);
+
+  // start freertos stats task for monitoring freertos states
   freertos_stats_task_handle = xTaskCreateStatic(
       freertos_stats_task, "freertos_stats_task",
       FREERTOS_STATS_TASK_STACK_SIZE, NULL, TaskPriorityLowest,
@@ -182,6 +209,22 @@ static void led_module_init() {
                         LED_GEAR_Pin);
 
   LedController_start(&led_controller);
+}
+
+static void auxiliary_error_handler(void *const argument, uint32_t error_code) {
+  (void)argument;
+
+  // write error code to can frame
+  uint32_t full_error_code;
+  ErrorHandler_get_error(&error_handler, &full_error_code);
+  xSemaphoreTake(can_vcu_tx_mutex, portMAX_DELAY);
+  can_vcu_tx.VCU_Status.VCU_Error_Code = full_error_code;
+  xSemaphoreGive(can_vcu_tx_mutex);
+
+  // blink led
+  if (error_code & ERROR_SET) {
+    LedController_blink(&led_controller, LED_ERROR, 500);
+  }
 }
 
 /* Callback function ---------------------------------------------------------*/

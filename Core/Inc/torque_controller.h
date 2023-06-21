@@ -46,6 +46,7 @@ typedef struct torque_controller {
   /// @brief Last torque command [N * m].
   float torque_command_last_;
 
+  /// @brief Task stack buffer.
   StackType_t task_stack_[TORQUE_CONTROLLER_TASK_STACK_SIZE];
 } TorqueController;
 
@@ -64,6 +65,8 @@ void TorqueController_ctor(TorqueController* const self);
  *
  * @param[in,out] self The instance of the class.
  * @return ModuleRet Error code.
+ * @warning For internal use only.
+ * @note This function is virtual.
  */
 ModuleRet TorqueController_start(TorqueController* const _self);
 
@@ -73,6 +76,7 @@ ModuleRet TorqueController_start(TorqueController* const _self);
  * @param[in,out] self The instance of the class.
  * @param[in] state The state of the button.
  * @return None.
+ * @warning For internal use only.
  */
 void TorqueController_gear_high_button_callback(void* const _self,
                                                 const GPIO_PinState state);
@@ -83,6 +87,7 @@ void TorqueController_gear_high_button_callback(void* const _self,
  * @param[in,out] self The instance of the class.
  * @param[in] state The state of the button.
  * @return None.
+ * @warning For internal use only.
  */
 void TorqueController_gear_reverse_button_callback(void* const _self,
                                                    const GPIO_PinState state);
@@ -91,7 +96,7 @@ void TorqueController_gear_reverse_button_callback(void* const _self,
  * @brief Function to run in freertos task.
  *
  * @param[in,out] self The instance of the class.
- * @retval None
+ * @return None
  * @warning For internal use only.
  */
 void TorqueController_task_code(void* const _self);

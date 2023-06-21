@@ -46,6 +46,14 @@ ModuleRet __StatusController_start(Task* const _self) {
   module_assert(IS_NOT_NULL(_self));
 
   StatusController* const self = (StatusController*)_self;
+
+  // register error callback function
+  ErrorHandler_add_error_callback(&error_handler, &self->error_callback_cb_,
+                                  StatusController_error_handler, (void*)self,
+                                  ERROR_CODE_APPS_IMPLAUSIBILITY |
+                                      ERROR_CODE_BSE_IMPLAUSIBILITY |
+                                      ERROR_CODE_CAN_RX_CRITICAL);
+
   return Task_create_freertos_task(
       (Task*)self, "status_controller", STATUS_CONTROLLER_TASK_PRIORITY,
       self->task_stack_, STATUS_CONTROLLER_TASK_STACK_SIZE);
@@ -67,7 +75,8 @@ void StatusController_ctor(StatusController* const self) {
 
   // only initialize states controlled by error handler
   self->apps_signal_ = true;
-  self->receive_critical_can_ = true;
+  self->bse_signal_ = true;
+  self->critical_can_rx_ = true;
 }
 
 /* member function -----------------------------------------------------------*/
@@ -100,36 +109,31 @@ ModuleRet StatusController_reset_status(StatusController* const self) {
   return ModuleOK;
 }
 
-void StatusController_apps_error_handler(void* const _self,
-                                         uint32_t error_code) {
+void StatusController_error_handler(void* const _self, uint32_t error_code) {
   StatusController* const self = (StatusController*)_self;
 
-  if (error_code & ERROR_SET) {
-    self->apps_signal_ = false;
-  } else {
-    self->apps_signal_ = true;
+  if (error_code & ERROR_CODE_APPS_IMPLAUSIBILITY) {
+    if (error_code & ERROR_SET) {
+      self->apps_signal_ = false;
+    } else {
+      self->apps_signal_ = true;
+    }
   }
-}
 
-void StatusController_bse_error_handler(void* const _self,
-                                        uint32_t error_code) {
-  StatusController* const self = (StatusController*)_self;
-
-  if (error_code & ERROR_SET) {
-    self->bse_signal_ = false;
-  } else {
-    self->bse_signal_ = true;
+  if (error_code & ERROR_CODE_BSE_IMPLAUSIBILITY) {
+    if (error_code & ERROR_SET) {
+      self->bse_signal_ = false;
+    } else {
+      self->bse_signal_ = true;
+    }
   }
-}
 
-void StatusController_can_error_handler(void* const _self,
-                                        uint32_t error_code) {
-  StatusController* const self = (StatusController*)_self;
-
-  if (error_code & ERROR_SET) {
-    self->receive_critical_can_ = false;
-  } else {
-    self->receive_critical_can_ = true;
+  if (error_code & ERROR_CODE_CAN_RX_CRITICAL) {
+    if (error_code & ERROR_SET) {
+      self->critical_can_rx_ = false;
+    } else {
+      self->critical_can_rx_ = true;
+    }
   }
 }
 
@@ -139,7 +143,7 @@ void StatusController_task_code(void* const _self) {
 
   while (1) {
     /* check states ----------------------------------------------------------*/
-    // check pedal plausibility
+    // pedal plausibility
     GPIO_PinState bse_micro;
     ButtonMonitor_read_state(&button_monitor, MICRO_BSE, &bse_micro);
     xSemaphoreTake(pedal_data_mutex, portMAX_DELAY);
@@ -148,19 +152,25 @@ void StatusController_task_code(void* const _self) {
     if (self->pedal_plausibility_) {
       if (bse_micro == GPIO_PIN_SET &&
           apps > PEDAL_PLAUSIBILITY_CHECK_APPS_THRESHOLD) {
+        ErrorHandler_write_error(&error_handler,
+                                 ERROR_CODE_PEDAL_IMPLAUSIBILITY, ERROR_SET);
         self->pedal_plausibility_ = false;
       }
     } else {
       if (apps < PEDAL_PLAUSIBILITY_CHECK_APPS_THRESHOLD) {
+        ErrorHandler_write_error(&error_handler,
+                                 ERROR_CODE_PEDAL_IMPLAUSIBILITY, ERROR_CLEAR);
         self->pedal_plausibility_ = true;
       }
     }
 
-    // check critical node status
+    // critical node status (rear sensor)
     xSemaphoreTake(can_vcu_rx_mutex, portMAX_DELAY);
+    self->critical_node_status_ =
+        (can_vcu_rx.REAR_SENSOR_Status.REAR_SENSOR_Status == StatusRunning);
     xSemaphoreGive(can_vcu_rx_mutex);
 
-    // check inverter voltage
+    // inverter voltage
     xSemaphoreTake(can_vcu_hp_rx_mutex, portMAX_DELAY);
     self->inverter_voltage_ =
         (can_vcu_hp_rx.INV_Fast_Info.INV_Fast_DC_Bus_Voltage_phys >=
@@ -171,7 +181,7 @@ void StatusController_task_code(void* const _self) {
     switch (self->status_) {
       case StatusInit:
         if (self->apps_signal_ && self->bse_signal_ &&
-            self->pedal_plausibility_ && self->receive_critical_can_ &&
+            self->pedal_plausibility_ && self->critical_can_rx_ &&
             self->critical_node_status_ && self->inverter_voltage_) {
           LedController_turn_off(&led_controller, LED_VCU);
           self->status_ = StatusReady;
@@ -180,7 +190,7 @@ void StatusController_task_code(void* const _self) {
 
       case StatusReady:
         if (self->apps_signal_ && self->bse_signal_ &&
-            self->pedal_plausibility_ && self->receive_critical_can_ &&
+            self->pedal_plausibility_ && self->critical_can_rx_ &&
             self->critical_node_status_ && self->inverter_voltage_) {
           GPIO_PinState button_state;
           ButtonMonitor_read_state(&button_monitor, MICRO_BSE, &button_state);
@@ -230,7 +240,7 @@ void StatusController_task_code(void* const _self) {
 
       case StatusRunning:
         if (!(self->apps_signal_ && self->bse_signal_ &&
-              self->pedal_plausibility_ && self->receive_critical_can_ &&
+              self->pedal_plausibility_ && self->critical_can_rx_ &&
               self->critical_node_status_ && self->inverter_voltage_)) {
           LedController_turn_on(&led_controller, LED_VCU);
           self->status_ = StatusError;
@@ -239,13 +249,18 @@ void StatusController_task_code(void* const _self) {
 
       case StatusError:
         if (self->apps_signal_ && self->bse_signal_ &&
-            self->pedal_plausibility_ && self->receive_critical_can_ &&
+            self->pedal_plausibility_ && self->critical_can_rx_ &&
             self->critical_node_status_ && self->inverter_voltage_) {
           LedController_turn_off(&led_controller, LED_VCU);
           self->status_ = StatusReady;
         }
         break;
     }
+
+    /* write status to can frame ---------------------------------------------*/
+    xSemaphoreTake(can_vcu_tx_mutex, portMAX_DELAY);
+    can_vcu_tx.VCU_Status.VCU_Status = self->status_;
+    xSemaphoreGive(can_vcu_tx_mutex);
 
     vTaskDelayUntil(&last_wake, STATUS_CONTROLLER_TASK_PERIOD);
   }

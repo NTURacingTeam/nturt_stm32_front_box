@@ -2,11 +2,15 @@
 
 ## Introduction
 
-- Pins are denoted as `PIN`, e.g. `5V`, `PA0`, etc.
+Software architecture.
+
+![](image/vcu.png)
 
 ## Peripheral Configuration
 
 ### GPIO
+
+- Pins are denoted as `PIN`, e.g. `5V`, `PA0`, etc.
 
 #### Button (pull-down)
 
