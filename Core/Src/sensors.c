@@ -68,6 +68,7 @@ static inline float APPS1_transfer_function(const uint16_t reading);
 static inline float APPS2_transfer_function (const uint16_t reading);
 static inline float BSE_transfer_function(const uint16_t reading);
 #define OUT_OF_BOUNDS_MARGIN 0.05
+static inline int16_t tire_temp_transfer_function(const uint8_t high, const uint8_t low);
 
 /**
  * @brief structure to hold the data acquired by DMA
@@ -101,7 +102,7 @@ travel_data_t travel_sensor = {
     //mutex is initialized in user_main.c along with everything freertos
 };
 
-extern tire_temp_data_t tire_temp_sensor = {
+tire_temp_data_t tire_temp_sensor = {
     .left = {0},
     .right = {0}
     //mutex is initialized in user_main.c along with everything freertos
@@ -202,14 +203,19 @@ void sensor_handler(void* argument) {
         
         }
         if(pending_notifications & FLAG_READ_TIRE_TEMP) {
+            //TODO: move the integer literals to somewhere else
             pending_notifications &= ~FLAG_READ_TIRE_TEMP;
             //read the values from both sensors
             HAL_I2C_Mem_Read_DMA(&hi2c5, i2c_stream_R[0], i2c_stream_R[1], 1, &(i2c_stream_R[3]), 19);
             HAL_I2C_Mem_Read_DMA(&hi2c1, i2c_stream_L[0], i2c_stream_L[1], 1, &(i2c_stream_L[3]), 19);
             //wait for the DMA to finish TODO: error case where the stuff did not finish
             wait_for_notif_flags((FLAG_I2C5_FINISH | FLAG_I2C1_FINISH), I2C_TIMEOUT, pending_notifications);
+            //TODO: CRC the data
             xSemaphoreTake(tire_temp_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
-            //the transfer function for the temp sensors
+            //the transfer function for the temp sensors //TODO: do we record the PTAT on 4 and 5?
+                for(int i=0; i<8; i++) {
+                    tire_temp_sensor.left[i] = tire_temp_transfer_function(i2c_stream_R[5+i*2+1], i2c_stream_L[5+i*2]);
+                }
             xSemaphoreGive(tire_temp_sensor.mutex);
         }
     }
@@ -280,6 +286,10 @@ static inline float BSE_transfer_function(const uint16_t reading) {
     if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
     if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
     return buf;
+}
+
+static inline int16_t tire_temp_transfer_function(const uint8_t highByte, const uint8_t lowByte) {
+    return ((int16_t)highByte) << 8 + ((int16_t)lowByte);
 }
 
 /**
