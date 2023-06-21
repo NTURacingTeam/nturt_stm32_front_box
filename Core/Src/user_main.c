@@ -68,7 +68,6 @@ void user_init() {
     sensor_timer_callback,
     &sensor_timer_buffer
   );
-  xTimerStart(sensor_timer_handle, 0); //TODO: case where timer did not start
   pedal.mutex = xSemaphoreCreateMutex();
   travel_sensor.mutex = xSemaphoreCreateMutex();
 }

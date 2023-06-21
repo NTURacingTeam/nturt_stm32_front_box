@@ -118,10 +118,13 @@ void sensor_handler(void* argument) {
 
     (void)argument;
 
+    uint32_t pending_notifications = 0U;
+    
+    //start the timer that notifies this task to do stuff
+    xTimerStart(sensor_timer_handle, portMAX_DELAY); //TODO: case where timer did not start
+
     adc_dma_buffer_t adc_dma_buffer = {0};
     
-    uint32_t pending_notifications = 0U;
-
     while(1) {
         if(!pending_notifications) {
             //wait for notifications from timer if there are no pending ones
