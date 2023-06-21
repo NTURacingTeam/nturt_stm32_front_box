@@ -119,6 +119,18 @@ TimerHandle_t sensor_timer_handle;
 
 void sensor_timer_callback(TimerHandle_t timer) {
     xTaskNotify(sensors_data_task_handle, FLAG_READ_PEDAL, eSetBits);
+
+    // we use the timer ID to secretly count how many times have the timer expired
+    // and update the tire temp data with also a fix interval
+    uint32_t expire_count = pvTimerGetTimerID(timer);
+    expire_count++;
+    vTimerSetTimerID(timer, &expire_count);
+
+    if(pvTimerGetTimerID(timer) >= TIRE_TEMP_PERIOD/SENSOR_TIMER_PERIOD) {
+        xTaskNotify(sensors_data_task_handle, FLAG_READ_TIRE_TEMP, eSetBits);
+        expire_count = 0;
+        vTimerSetTimerID(timer, expire_count);
+    }
 }
 
 /**
