@@ -1,13 +1,13 @@
 /**
- * @file pedals.c
+ * @file sensors.c
  * @author MinLun Tsou (astatine1184@gmail.com)
- * @brief the controller function for the 2 pedals, APPS and BSE
- * @version 0.1
- * @date 2023-05-29
+ * @brief the controller function for the 2 pedals, APPS and BSE and every other sensors
+ * @version 0.2
+ * @date 2023-06-21
  * 
  * @copyright Copyright (c) 2023
  * 
- * TODO: update this explanation 
+ * TODO: update the explanation for other sensors
  * There are 3 foot pedal sensors: 2 APPS and 1 BSE
  * The relative rules for APPS and BSE are in T.4
  * 
@@ -43,9 +43,6 @@
 // project include
 #include "project_def.h"
 
-//module include
-#include "stm32_module/stm32_module.h"
-
 //own include
 #include "sensors.h"
 
@@ -57,9 +54,8 @@
 #define FLAG_ADC3_FINISH 0x20
 #define FLAG_I2C5_FINISH 0x40
 #define FLAG_I2C1_FINISH 0x80
-#define FLAG_READ_PEDAL 0x1000
+#define FLAG_READ_SUS_PEDAL 0x1000
 #define FLAG_READ_TIRE_TEMP 0x2000
-#define FLAG_READ_SUS 0x4000
 #define FLAG_D6T_STARTUP 0x100000
 
 //private functions
@@ -69,7 +65,9 @@ static inline float APPS2_transfer_function (const uint16_t reading);
 static inline float BSE_transfer_function(const uint16_t reading);
 #define OUT_OF_BOUNDS_MARGIN 0.05
 static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
-void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
+
+static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
+
 /**
  * @brief structure to hold the data acquired by DMA
  * 
@@ -88,11 +86,11 @@ typedef struct{
  * 
  */
 pedal_data_t pedal = {
-    .apps1 = 0.0,
-    .apps2 = 0.0,
-    .bse = 0.0,
-    .micro_apps = 1,
-    .micro_bse = 1
+    .apps1 = 0.0, 
+    .apps2 = 0.0, 
+    .bse = 0.0, 
+    .micro_apps = 1, 
+    .micro_bse = 1 
     //mutex is intitialized in user_main.c along with everything freertos
 };
 
@@ -118,7 +116,7 @@ __dtcmram StaticTimer_t sensor_timer_buffer;
 TimerHandle_t sensor_timer_handle;
 
 void sensor_timer_callback(TimerHandle_t timer) {
-    xTaskNotify(sensors_data_task_handle, FLAG_READ_PEDAL, eSetBits);
+    xTaskNotify(sensors_data_task_handle, FLAG_READ_SUS_PEDAL, eSetBits);
 
     // we use the timer ID to secretly count how many times have the timer expired
     // and update the tire temp data with also a fix interval
@@ -128,8 +126,7 @@ void sensor_timer_callback(TimerHandle_t timer) {
 
     if((uint32_t)pvTimerGetTimerID(timer) >= TIRE_TEMP_PERIOD/SENSOR_TIMER_PERIOD) {
         xTaskNotify(sensors_data_task_handle, FLAG_READ_TIRE_TEMP, eSetBits);
-        expire_count = 0;
-        vTimerSetTimerID(timer, (void*)expire_count);
+        vTimerSetTimerID(timer, (void*)0);
     }
 }
 
@@ -153,7 +150,8 @@ void sensor_handler(void* argument) {
     //wait for 500ms after initialization before starting to query the sensors
     vTaskDelay(pdMS_TO_TICKS(500));
     
-    //start the timer that notifies this task to do stuff
+    //start the initial read, and start the timer that should later notifies this task to do stuff again
+    xTaskNotify(xTaskGetCurrentTaskHandle(), FLAG_READ_SUS_PEDAL | FLAG_READ_TIRE_TEMP, eSetBits);
     xTimerStart(sensor_timer_handle, portMAX_DELAY); //TODO: case where timer did not start
 
     volatile adc_dma_buffer_t adc_dma_buffer = {0};
@@ -164,9 +162,9 @@ void sensor_handler(void* argument) {
             (void)xTaskNotifyWait(0, 0xFFFFFFFFUL, &pending_notifications, portMAX_DELAY);
         }
 
-        if(pending_notifications & FLAG_READ_PEDAL) {
+        if(pending_notifications & FLAG_READ_SUS_PEDAL) {
             //clear bit
-            pending_notifications &= ~FLAG_READ_PEDAL;
+            pending_notifications &= ~FLAG_READ_SUS_PEDAL;
 
             //TODO: set the conversion mode for the ADC to not blow up the buffers accidentally
             HAL_ADC_Start_DMA(&hadc1, &(adc_dma_buffer.apps1), 2);
@@ -198,7 +196,7 @@ void sensor_handler(void* argument) {
             if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
             
             const float bse = BSE_transfer_function(adc_dma_buffer.bse);
-            if(bse > 1 || bse < 0) ErrorHandler_write_error(&error_handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
+            if(bse > 1.0 || bse < 0.0) ErrorHandler_write_error(&error_handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
             
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 pedal.apps1 = apps1;
@@ -221,30 +219,23 @@ void sensor_handler(void* argument) {
             HAL_I2C_Mem_Read_DMA(&hi2c5, i2c_stream_R[0], i2c_stream_R[1], 1, &(i2c_stream_R[3]), 19);
             HAL_I2C_Mem_Read_DMA(&hi2c1, i2c_stream_L[0], i2c_stream_L[1], 1, &(i2c_stream_L[3]), 19);
             //wait for the DMA to finish TODO: error case where the stuff did not finish
-            wait_for_notif_flags((FLAG_I2C5_FINISH | FLAG_I2C1_FINISH), I2C_TIMEOUT, &pending_notifications);
+            wait_for_notif_flags((FLAG_I2C5_FINISH | FLAG_I2C1_FINISH), pdMS_TO_TICKS(I2C_TIMEOUT), &pending_notifications);
             //TODO: CRC the data
             xSemaphoreTake(tire_temp_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
             //the transfer function for the temp sensors //TODO: do we record the PTAT on 4 and 5?
                 for(int i=0; i<8; i++) {
-                    tire_temp_sensor.left[i] = tire_temp_transfer_function(i2c_stream_R[5+i*2+1], i2c_stream_L[5+i*2]);
+                    tire_temp_sensor.left[i] = tire_temp_transfer_function(i2c_stream_L[5+i*2+1], i2c_stream_L[5+i*2]);
+                    tire_temp_sensor.right[i] = tire_temp_transfer_function(i2c_stream_R[5+i*2+1], i2c_stream_R[5+i*2]);
                 }
             xSemaphoreGive(tire_temp_sensor.mutex);
         }
     }
 }
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
-    if(hadc == &hadc1) {
-        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC1_FINISH, eSetBits, NULL);
-    } else if(hadc == &hadc3) {
-        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC3_FINISH, eSetBits, NULL);
-    }
-}
-
 /**
  * @brief wrapper function to wait for specific bits in the task notification
- * @param target the target that needs to be waited in ticks
- * @param timeout the timeout
+ * @param target the target that needs to be waited 
+ * @param timeout the timeout in ticks
  * @param gotten all the flags that are set. target bits would be autocleared if they are gotten
  * @return the status of the function
  */
@@ -253,6 +244,7 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
     uint32_t flag_gotten = 0U;
     const TickType_t t0 = xTaskGetTickCount();
     TickType_t tlast = t0;
+    
     //if either of which is not set
     do {
         BaseType_t Wait_result = xTaskNotifyWait(0, 0xFFFFFFFFUL, &flag_buf, timeout-(tlast-t0));
@@ -312,7 +304,7 @@ static inline float tire_temp_transfer_function(const uint8_t highByte, const ui
  * @param txThreadFlag the task notification flag used to indicate completion of transfer
  * @param otherflags the other flags that might be caught when are waiting for the the DMA to complete through FreeRTOS notifications
  */
-void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags) {
+static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags) {
     //TODO: use the return value to report error
     //fixed parameters of D6T sensors: address, I2C command to get data, and the startup transmissions
     const uint8_t D6Taddr = 0b0001010;
@@ -342,14 +334,22 @@ void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t
 }
 
 void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c) {
-    xTaskNotify(sensors_data_task_handle, FLAG_D6T_STARTUP, eSetBits);
+    xTaskNotifyFromISR(sensors_data_task_handle, FLAG_D6T_STARTUP, eSetBits, NULL);
 }
 
 void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c) {
     if(hi2c == &hi2c1) {
-        xTaskNotify(sensors_data_task_handle, FLAG_I2C1_FINISH, eSetBits);
+        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_I2C1_FINISH, eSetBits, NULL);
     }
     else if (hi2c == &hi2c5) {
-        xTaskNotify(sensors_data_task_handle, FLAG_I2C5_FINISH, eSetBits);
+        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_I2C5_FINISH, eSetBits, NULL);
+    }
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
+    if(hadc == &hadc1) {
+        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC1_FINISH, eSetBits, NULL);
+    } else if(hadc == &hadc3) {
+        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC3_FINISH, eSetBits, NULL);
     }
 }
