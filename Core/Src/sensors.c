@@ -7,6 +7,7 @@
  * 
  * @copyright Copyright (c) 2023
  * 
+ * TODO: update this explanation 
  * There are 3 foot pedal sensors: 2 APPS and 1 BSE
  * The relative rules for APPS and BSE are in T.4
  * 
@@ -52,8 +53,10 @@
 #define ADC_TIMEOUT 0x02
 #define I2C_TIMEOUT 0xFF
 
-#define FLAG_ADC1_FINISH 0x2
-#define FLAG_ADC3_FINISH 0x4
+#define FLAG_ADC1_FINISH 0x10
+#define FLAG_ADC3_FINISH 0x20
+#define FLAG_I2C5_FINISH 0x40
+#define FLAG_I2C1_FINISH 0x80
 #define FLAG_READ_PEDAL 0x1000
 #define FLAG_READ_TIRE_TEMP 0x2000
 #define FLAG_READ_SUS 0x4000
@@ -98,6 +101,12 @@ travel_data_t travel_sensor = {
     //mutex is initialized in user_main.c along with everything freertos
 };
 
+extern tire_temp_data_t tire_temp_sensor = {
+    .left = {0},
+    .right = {0}
+    //mutex is initialized in user_main.c along with everything freertos
+};
+
 /*task controls*/
 __dtcmram uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
 __dtcmram StaticTask_t sensors_data_task_cb;
@@ -122,8 +131,8 @@ void sensor_handler(void* argument) {
     uint32_t pending_notifications = 0U;
 
     /*initialize D6T sensors*/
-    volatile uint8_t i2c_stream_R = {0};
-    volatile uint8_t i2c_stream_L = {0};
+    volatile uint8_t i2c_stream_R[22] = {0};
+    volatile uint8_t i2c_stream_L[22] = {0};
     //first wait for 20ms for the sensors to boot up
     vTaskDelay(pdMS_TO_TICKS(20));
     init_D6T(&hi2c5, i2c_stream_R, FLAG_D6T_STARTUP, pending_notifications);
@@ -164,33 +173,44 @@ void sensor_handler(void* argument) {
                 pending_notifications &= ~(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH);
             }
 
-            {
-                //TODO: another error handler for implausibility
-                //TODO: how to use errorhandler API
-                const float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
-                if(apps1 > 1.0 || apps1 < 0.0) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+        
+            //TODO: another error handler for implausibility
+            //TODO: how to use errorhandler API
+            const float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
+            if(apps1 > 1.0 || apps1 < 0.0) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
 
-                const float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
-                if(apps2 > 1.0 || apps2 < 0.0) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+            const float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
+            if(apps2 > 1.0 || apps2 < 0.0) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
 
-                if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
-                
-                const float bse = BSE_transfer_function(adc_dma_buffer.bse);
-                if(bse > 1 || bse < 0) ErrorHandler_write_error(&error_handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
-                
-                xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
-                    pedal.apps1 = apps1;
-                    pedal.apps2 = apps2;
-                    pedal.bse = bse;
-                xSemaphoreGive(pedal.mutex);
-            }
-            {
-                //update the travel sensor's value
-                xSemaphoreTake(travel_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
-                    travel_sensor.left = adc_dma_buffer.travel_l;
-                    travel_sensor.right = adc_dma_buffer.travel_r;
-                xSemaphoreGive(travel_sensor.mutex);
-            }
+            if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+            
+            const float bse = BSE_transfer_function(adc_dma_buffer.bse);
+            if(bse > 1 || bse < 0) ErrorHandler_write_error(&error_handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
+            
+            xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
+                pedal.apps1 = apps1;
+                pedal.apps2 = apps2;
+                pedal.bse = bse;
+            xSemaphoreGive(pedal.mutex);
+        
+        
+            //update the travel sensor's value
+            xSemaphoreTake(travel_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
+                travel_sensor.left = adc_dma_buffer.travel_l;
+                travel_sensor.right = adc_dma_buffer.travel_r;
+            xSemaphoreGive(travel_sensor.mutex);
+        
+        }
+        if(pending_notifications & FLAG_READ_TIRE_TEMP) {
+            pending_notifications &= ~FLAG_READ_TIRE_TEMP;
+            //read the values from both sensors
+            HAL_I2C_Mem_Read_DMA(&hi2c5, i2c_stream_R[0], i2c_stream_R[1], 1, &(i2c_stream_R[3]), 19);
+            HAL_I2C_Mem_Read_DMA(&hi2c1, i2c_stream_L[0], i2c_stream_L[1], 1, &(i2c_stream_L[3]), 19);
+            //wait for the DMA to finish TODO: error case where the stuff did not finish
+            wait_for_notif_flags((FLAG_I2C5_FINISH | FLAG_I2C1_FINISH), I2C_TIMEOUT, pending_notifications);
+            xSemaphoreTake(tire_temp_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
+            //the transfer function for the temp sensors
+            xSemaphoreGive(tire_temp_sensor.mutex);
         }
     }
 }
@@ -301,4 +321,13 @@ static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, u
 
 void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c) {
     xTaskNotify(sensors_data_task_handle, FLAG_D6T_STARTUP, eSetBits);
+}
+
+void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c) {
+    if(hi2c == &hi2c1) {
+        xTaskNotify(sensors_data_task_handle, FLAG_I2C1_FINISH, eSetBits);
+    }
+    else if (hi2c == &hi2c5) {
+        xTaskNotify(sensors_data_task_handle, FLAG_I2C5_FINISH, eSetBits);
+    }
 }

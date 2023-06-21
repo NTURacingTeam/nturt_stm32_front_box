@@ -28,6 +28,14 @@ typedef struct {
 
 extern travel_data_t travel_sensor;
 
+typedef struct {
+    int16_t left[8];
+    int16_t right[8];
+    SemaphoreHandle_t mutex;
+} tire_temp_data_t;
+
+extern tire_temp_data_t tire_temp_sensor;
+
 /*task controls*/
 void sensor_handler(void*);
 extern uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];

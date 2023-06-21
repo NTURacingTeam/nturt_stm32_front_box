@@ -70,6 +70,7 @@ void user_init() {
   );
   pedal.mutex = xSemaphoreCreateMutex();
   travel_sensor.mutex = xSemaphoreCreateMutex();
+  tire_temp_sensor.mutex = xSemaphoreCreateMutex();
 }
 
 /* Task control --------------------------------------------------------------*/
