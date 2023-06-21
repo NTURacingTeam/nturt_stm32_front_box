@@ -179,23 +179,24 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
  * @brief wrapper function to wait for specific bits in the task notification
  * @param target the target that needs to be waited in ticks
  * @param timeout the timeout
- * @param gotten all the flags that are set
+ * @param gotten all the flags that are set. target bits would be autocleared if they are gotten
  * @return the status of the function
  */
 BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten) {    
     uint32_t flag_buf = 0U;
     uint32_t flag_gotten = 0U;
     const TickType_t t0 = xTaskGetTickCount();
+    TickType_t tlast = t0;
     //if either of which is not set
     do {
-        BaseType_t Wait_result = xTaskNotifyWait(0, 0xFFFFFFFFUL, &flag_buf, timeout);
-        flag_gotten |= flag_buf;
-        *gotten = flag_gotten;
-
-        if(xTaskGetTickCount() - t0 >= timeout || Wait_result == pdFALSE) {
+        BaseType_t Wait_result = xTaskNotifyWait(0, 0xFFFFFFFFUL, &flag_buf, timeout-(tlast-t0));
+        if(Wait_result == pdFALSE) {
             return pdFALSE;
         }
 
+        flag_gotten |= flag_buf;
+        *gotten = flag_gotten;
+        tlast = xTaskGetTickCount();
     } while(~flag_gotten & target);
 
     //remove the gotten flags if the flags are correctly received
