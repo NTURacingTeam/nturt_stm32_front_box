@@ -31,6 +31,7 @@
 
 // stm32 include
 #include "main.h"
+#include "user_main.h"
 
 // freertos include
 #include "FreeRTOS.h"
@@ -86,6 +87,12 @@ pedal_data_t pedal = {
     .micro_apps = 1,
     .micro_bse = 1
     //mutex is intitialized in user_main.c along with everything freertos
+};
+
+travel_data_t travel_sensor = {
+    .left = 0,
+    .right = 0
+    //mutex is initialized in user_main.c along with everything freertos
 };
 
 /*task controls*/
@@ -147,12 +154,12 @@ void sensor_handler(void* argument) {
                 //TODO: another error handler for implausibility
                 //TODO: how to use errorhandler API
                 const float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
-                if(apps1 > 1.0 || apps1 < 0.0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+                if(apps1 > 1.0 || apps1 < 0.0) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
 
                 const float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
-                if(apps2 > 1.0 || apps2 < 0.0) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+                if(apps2 > 1.0 || apps2 < 0.0) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
 
-                if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&Error_Handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
+                if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
                 
                 const float bse = BSE_transfer_function(adc_dma_buffer.bse);
                 if(bse > 1 || bse < 0); ErrorHandler_write_error(&Error_Handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
@@ -162,6 +169,13 @@ void sensor_handler(void* argument) {
                     pedal.apps2 = apps2;
                     pedal.bse = bse;
                 xSemaphoreGive(pedal.mutex);
+            }
+            {
+                //update the travel sensor's value
+                xSemaphoreTake(travel_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
+                    travel_sensor.left = adc_dma_buffer.travel_l;
+                    travel_sensor.right = adc_dma_buffer.travel_r;
+                xSemaphoreGive(travel_sensor.mutex);
             }
         }
     }

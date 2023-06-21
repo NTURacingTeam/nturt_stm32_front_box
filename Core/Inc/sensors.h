@@ -20,6 +20,14 @@ typedef struct {
 
 extern pedal_data_t pedal;
 
+typedef struct {
+    uint16_t left;
+    uint16_t right;
+    SemaphoreHandle_t mutex;
+} travel_data_t;
+
+extern travel_data_t travel_sensor;
+
 /*task controls*/
 void sensor_handler(void*);
 extern uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
