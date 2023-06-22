@@ -76,6 +76,7 @@ typedef struct{
     //TODO: organize the buffer space and the peripheral settings since other sensors uses ADC as well
     uint16_t apps1; //ADC12 rank1
     uint16_t travel_r; //ADC12 rank2
+    uint16_t strain; //ADC12 rank3
     uint16_t apps2; //ADC3 rank1
     uint16_t bse; //ADC3 rank2
     uint16_t travel_l; //ADC3 rank3
@@ -94,9 +95,10 @@ pedal_data_t pedal = {
     //mutex is intitialized in user_main.c along with everything freertos
 };
 
-travel_data_t travel_sensor = {
+travel_strain_data_t travel_strain_sensor = {
     .left = 0,
-    .right = 0
+    .right = 0,
+    .strain = 0
     //mutex is initialized in user_main.c along with everything freertos
 };
 
@@ -167,7 +169,7 @@ void sensor_handler(void* argument) {
             pending_notifications &= ~FLAG_READ_SUS_PEDAL;
 
             //TODO: set the conversion mode for the ADC to not blow up the buffers accidentally
-            HAL_ADC_Start_DMA(&hadc1, &(adc_dma_buffer.apps1), 2);
+            HAL_ADC_Start_DMA(&hadc1, &(adc_dma_buffer.apps1), 3);
             HAL_ADC_Start_DMA(&hadc3, &(adc_dma_buffer.apps2), 3);
 
             const uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_PORT, MICRO_APPS_PIN);
@@ -206,10 +208,11 @@ void sensor_handler(void* argument) {
         
         
             //update the travel sensor's value
-            xSemaphoreTake(travel_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
-                travel_sensor.left = adc_dma_buffer.travel_l;
-                travel_sensor.right = adc_dma_buffer.travel_r;
-            xSemaphoreGive(travel_sensor.mutex);
+            xSemaphoreTake(travel_strain_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
+                travel_strain_sensor.left = adc_dma_buffer.travel_l;
+                travel_strain_sensor.right = adc_dma_buffer.travel_r;
+                travel_strain_sensor.strain = adc_dma_buffer.strain;
+            xSemaphoreGive(travel_strain_sensor.mutex);
         
         }
         if(pending_notifications & FLAG_READ_TIRE_TEMP) {

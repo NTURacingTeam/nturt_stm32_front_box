@@ -23,10 +23,11 @@ extern pedal_data_t pedal;
 typedef struct {
     uint16_t left;
     uint16_t right;
+    uint16_t strain;
     SemaphoreHandle_t mutex;
-} travel_data_t;
+} travel_strain_data_t;
 
-extern travel_data_t travel_sensor;
+extern travel_strain_data_t travel_strain_sensor;
 
 typedef struct {
     float left[8];
