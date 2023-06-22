@@ -31,10 +31,11 @@ typedef struct {
     uint16_t left;
     uint16_t right;
     uint16_t strain;
+    float oil_pressure;
     SemaphoreHandle_t mutex;
 } travel_strain_data_t;
 
-extern travel_strain_data_t travel_strain_sensor;
+extern travel_strain_data_t travel_strain_oil_sensor;
 
 typedef struct {
     float left[8];

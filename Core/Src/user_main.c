@@ -111,7 +111,7 @@ void user_init() {
     &sensor_timer_buffer
   );
   pedal.mutex = xSemaphoreCreateMutex();
-  travel_strain_sensor.mutex = xSemaphoreCreateMutex();
+  travel_strain_oil_sensor.mutex = xSemaphoreCreateMutex();
   tire_temp_sensor.mutex = xSemaphoreCreateMutex();
 
 

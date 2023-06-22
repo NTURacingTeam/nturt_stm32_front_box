@@ -65,6 +65,7 @@ static inline float APPS2_transfer_function (const uint16_t reading);
 static inline float BSE_transfer_function(const uint16_t reading);
 #define OUT_OF_BOUNDS_MARGIN 0.05
 static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
+static inline float oil_transfer_function(const uint16_t reading);
 
 static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
 
@@ -77,6 +78,7 @@ typedef struct{
     uint16_t apps1; //ADC12 rank1
     uint16_t travel_r; //ADC12 rank2
     uint16_t strain; //ADC12 rank3
+    uint16_t oil; //ADC12 rank4
     uint16_t apps2; //ADC3 rank1
     uint16_t bse; //ADC3 rank2
     uint16_t travel_l; //ADC3 rank3
@@ -95,10 +97,11 @@ pedal_data_t pedal = {
     //mutex is intitialized in user_main.c along with everything freertos
 };
 
-travel_strain_data_t travel_strain_sensor = {
+travel_strain_data_t travel_strain_oil_sensor = {
     .left = 0,
     .right = 0,
-    .strain = 0
+    .strain = 0,
+    .oil_pressure = 0.0
     //mutex is initialized in user_main.c along with everything freertos
 };
 
@@ -169,7 +172,7 @@ void sensor_handler(void* argument) {
             pending_notifications &= ~FLAG_READ_SUS_PEDAL;
 
             //TODO: set the conversion mode for the ADC to not blow up the buffers accidentally
-            HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 3);
+            HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
             HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3);
 
             const uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin);
@@ -208,11 +211,12 @@ void sensor_handler(void* argument) {
         
         
             //update the travel sensor's value
-            xSemaphoreTake(travel_strain_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
-                travel_strain_sensor.left = adc_dma_buffer.travel_l;
-                travel_strain_sensor.right = adc_dma_buffer.travel_r;
-                travel_strain_sensor.strain = adc_dma_buffer.strain;
-            xSemaphoreGive(travel_strain_sensor.mutex);
+            xSemaphoreTake(travel_strain_oil_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
+                travel_strain_oil_sensor.left = adc_dma_buffer.travel_l;
+                travel_strain_oil_sensor.right = adc_dma_buffer.travel_r;
+                travel_strain_oil_sensor.strain = adc_dma_buffer.strain;
+                travel_strain_oil_sensor.oil_pressure = oil_transfer_function(adc_dma_buffer.oil);
+            xSemaphoreGive(travel_strain_oil_sensor.mutex);
         
         }
         if(pending_notifications & FLAG_READ_TIRE_TEMP) {
@@ -297,6 +301,11 @@ static inline float BSE_transfer_function(const uint16_t reading) {
 
 static inline float tire_temp_transfer_function(const uint8_t highByte, const uint8_t lowByte) {
     return (float)((((int16_t)highByte) << 8) + (int16_t)lowByte)/5;
+}
+
+static inline float oil_transfer_function(const uint16_t reading) {
+    //see https://www.mouser.tw/datasheet/2/418/8/ENG_DS_MSP300_B1-1130121.pdf
+    return ((float)reading*4 - 1000) * (70)/(15000-1000);
 }
 
 /**
