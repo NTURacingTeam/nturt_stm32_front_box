@@ -169,8 +169,8 @@ void sensor_handler(void* argument) {
             pending_notifications &= ~FLAG_READ_SUS_PEDAL;
 
             //TODO: set the conversion mode for the ADC to not blow up the buffers accidentally
-            HAL_ADC_Start_DMA(&hadc1, &(adc_dma_buffer.apps1), 3);
-            HAL_ADC_Start_DMA(&hadc3, &(adc_dma_buffer.apps2), 3);
+            HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 3);
+            HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3);
 
             const uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin);
             const uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin);
