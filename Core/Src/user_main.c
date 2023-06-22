@@ -19,6 +19,7 @@
 #include "project_def.h"
 #include "status_controller.h"
 #include "torque_controller.h"
+#include "sensors.h"
 
 /* Exported variable ---------------------------------------------------------*/
 // stm32_module
@@ -92,6 +93,27 @@ void user_init() {
   StatusController_start(&status_controller);
   TorqueController_ctor(&torque_controller);
   TorqueController_start(&torque_controller);
+  sensors_data_task_handle = xTaskCreateStatic(
+      sensor_handler,
+      "sensors_data_task",
+      SENSOR_DATA_TASK_STACK_SIZE,
+      NULL,
+      TaskPriorityHigh,
+      sensors_data_task_buffer,
+      &sensors_data_task_cb
+  );
+  sensor_timer_handle = xTimerCreateStatic(
+    "sensors_data_timer",
+    pdMS_TO_TICKS(SENSOR_TIMER_PERIOD),
+    pdTRUE,
+    0,
+    sensor_timer_callback,
+    &sensor_timer_buffer
+  );
+  pedal.mutex = xSemaphoreCreateMutex();
+  travel_strain_sensor.mutex = xSemaphoreCreateMutex();
+  tire_temp_sensor.mutex = xSemaphoreCreateMutex();
+
 
   // register error callback function
   ErrorHandler_add_error_callback(&error_handler, &auxiliary_error_callback_cb,

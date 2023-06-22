@@ -39,6 +39,12 @@
 /// @brief Miniumum safe battery voltage in [V].
 #define MINIUMUM_BATTERY_VOLTAGE 250
 
+#define SENSOR_DATA_TASK_STACK_SIZE 256
+
+// freertos timer info
+#define SENSOR_TIMER_PERIOD 5 //in ms
+#define TIRE_TEMP_PERIOD 250 //in ms
+
 /* module config -------------------------------------------------------------*/
 /* button --------------------------------------------------------------------*/
 #define NUM_BUTTON_BUILTIN 1
