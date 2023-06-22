@@ -6,6 +6,7 @@
 
 #define __itcmram __attribute__((section(".itcmram")))
 #define __dtcmram __attribute__((section(".dtcmram")))
+#define __dma_buffer __attribute__((section(".dma_buffer")))
 
 /* project config ------------------------------------------------------------*/
 // freertos stack size

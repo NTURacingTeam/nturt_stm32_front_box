@@ -89,9 +89,9 @@ typedef struct{
  * 
  */
 pedal_data_t pedal = {
-    .apps1 = 0.0, 
-    .apps2 = 0.0, 
-    .bse = 0.0, 
+    .apps1 = 0.0,
+    .apps2 = 0.0,
+    .bse = 0.0,
     .micro_apps = 1, 
     .micro_bse = 1 
     //mutex is intitialized in user_main.c along with everything freertos
@@ -112,13 +112,17 @@ tire_temp_data_t tire_temp_sensor = {
 };
 
 /*task controls*/
-__dtcmram uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
-__dtcmram StaticTask_t sensors_data_task_cb;
+// __dtcmram 
+uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
+// __dtcmram 
+StaticTask_t sensors_data_task_cb;
 TaskHandle_t sensors_data_task_handle;
 
 /*timer controls*/
 __dtcmram StaticTimer_t sensor_timer_buffer;
 TimerHandle_t sensor_timer_handle;
+
+static __dma_buffer adc_dma_buffer_t adc_dma_buffer = {0};
 
 void sensor_timer_callback(TimerHandle_t timer) {
     xTaskNotify(sensors_data_task_handle, FLAG_READ_SUS_PEDAL, eSetBits);
@@ -159,8 +163,6 @@ void sensor_handler(void* argument) {
     xTaskNotify(xTaskGetCurrentTaskHandle(), FLAG_READ_SUS_PEDAL | FLAG_READ_TIRE_TEMP, eSetBits);
     xTimerStart(sensor_timer_handle, portMAX_DELAY); //TODO: case where timer did not start
 
-    volatile adc_dma_buffer_t adc_dma_buffer = {0};
-    
     while(1) {
         if(!pending_notifications) {
             //wait for notifications from timer if there are no pending ones
@@ -174,6 +176,7 @@ void sensor_handler(void* argument) {
             //TODO: set the conversion mode for the ADC to not blow up the buffers accidentally
             HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
             HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3);
+
 
             const uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin);
             const uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin);
@@ -279,21 +282,21 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
  * https://hackmd.io/@nturacing/ByOF6I5T9/%2F2Jgh0ieyS0mc_r-6pHKQyQ
  */
 static inline float APPS1_transfer_function(const uint16_t reading) {
-    float buf = (reading-860)/(3891-860);
+    float buf = (float)(reading-860)/(3891-860);
     if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
     if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
     return buf;
 }
 
 static inline float APPS2_transfer_function (const uint16_t reading) {
-    float buf = (reading*2-860)/(3891-860);
+    float buf = (float)(reading*2-860)/(3891-860);
     if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
     if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
     return buf;
 }
 
 static inline float BSE_transfer_function(const uint16_t reading) {
-    float buf = (reading-860)/(3891-860);
+    float buf = (float)(reading-860)/(3891-860);
     if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
     if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
     return buf;

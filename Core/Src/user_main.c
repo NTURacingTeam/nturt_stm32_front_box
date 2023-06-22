@@ -77,22 +77,22 @@ void user_init() {
   HAL_GPIO_WritePin(LED_VCU_GPIO_Port, LED_VCU_Pin, GPIO_PIN_SET);
 
   // stm32_module
-  button_module_init();
-  ErrorHandler_ctor(&error_handler);
-  ErrorHandler_start(&error_handler);
-  led_module_init();
-
-  // project
-  DashboardController_ctor(&dashboard_controller);
-  DashboardController_start(&dashboard_controller);
-  FrontBoxCan_ctor(&front_box_can, &hfdcan3);
-  FrontBoxCan_start(&front_box_can);
-  SensorReader_ctor(&sensor_reader);
-  SensorReader_start(&sensor_reader);
-  StatusController_ctor(&status_controller);
-  StatusController_start(&status_controller);
-  TorqueController_ctor(&torque_controller);
-  TorqueController_start(&torque_controller);
+//  button_module_init();
+//  ErrorHandler_ctor(&error_handler);
+//  ErrorHandler_start(&error_handler);
+//  led_module_init();
+//
+//  // project
+//  DashboardController_ctor(&dashboard_controller);
+//  DashboardController_start(&dashboard_controller);
+//  FrontBoxCan_ctor(&front_box_can, &hfdcan3);
+//  FrontBoxCan_start(&front_box_can);
+//  SensorReader_ctor(&sensor_reader);
+//  SensorReader_start(&sensor_reader);
+//  StatusController_ctor(&status_controller);
+//  StatusController_start(&status_controller);
+//  TorqueController_ctor(&torque_controller);
+//  TorqueController_start(&torque_controller);
   sensors_data_task_handle = xTaskCreateStatic(
       sensor_handler,
       "sensors_data_task",

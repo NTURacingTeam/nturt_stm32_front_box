@@ -204,5 +204,12 @@ SECTIONS
     libgcc.a ( * )
   }
 
+  .dma_buf(NOLOAD) :
+  {
+    . = ALIGN(8);
+    . = ABSOLUTE (0x30004000);
+    *(.dma_buffer)
+  } >RAM_D2
+
   .ARM.attributes 0 : { *(.ARM.attributes) }
 }
