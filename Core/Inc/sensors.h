@@ -5,6 +5,13 @@
 #include "semphr.h"
 #include "timers.h"
 
+/*macro: freertos object parameter*/
+#define SENSOR_DATA_TASK_STACK_SIZE 256
+
+// freertos timer info
+#define SENSOR_TIMER_PERIOD 5 //in ms
+#define TIRE_TEMP_PERIOD 250 //in ms
+
 /**
  * @brief structure to hold the data that is outputed by this function
  * 
