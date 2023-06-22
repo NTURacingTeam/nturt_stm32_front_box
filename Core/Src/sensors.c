@@ -172,8 +172,8 @@ void sensor_handler(void* argument) {
             HAL_ADC_Start_DMA(&hadc1, &(adc_dma_buffer.apps1), 3);
             HAL_ADC_Start_DMA(&hadc3, &(adc_dma_buffer.apps2), 3);
 
-            const uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_PORT, MICRO_APPS_PIN);
-            const uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_PORT, MICRO_BSE_PIN);
+            const uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin);
+            const uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin);
 
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 pedal.micro_apps = micro_apps;
