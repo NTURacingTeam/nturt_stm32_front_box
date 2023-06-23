@@ -228,16 +228,32 @@ void sensor_handler(void* argument) {
             //read the values from both sensors
             HAL_I2C_Mem_Read_DMA(&hi2c5, i2c_stream_R[0], i2c_stream_R[1], 1, &(i2c_stream_R[3]), 19);
             HAL_I2C_Mem_Read_DMA(&hi2c1, i2c_stream_L[0], i2c_stream_L[1], 1, &(i2c_stream_L[3]), 19);
-            //wait for the DMA to finish TODO: error case where the stuff did not finish
-            wait_for_notif_flags((FLAG_I2C5_FINISH | FLAG_I2C1_FINISH), pdMS_TO_TICKS(I2C_TIMEOUT), &pending_notifications);
+            //wait for the DMA to finish, while we can do other stuff in the mean time
+            //TODO: setup timeout exception and deal with error case where the stuff did not finish
+        }
+        if(pending_notifications & FLAG_I2C1_FINISH) {
+            //clear flags
+            pending_notifications &= ~FLAG_I2C1_FINISH;
+
             //TODO: CRC the data
+
             xSemaphoreTake(tire_temp_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
-            //the transfer function for the temp sensors //TODO: do we record the PTAT on 4 and 5?
                 for(int i=0; i<8; i++) {
                     tire_temp_sensor.left[i] = tire_temp_transfer_function(i2c_stream_L[5+i*2+1], i2c_stream_L[5+i*2]);
-                    tire_temp_sensor.right[i] = tire_temp_transfer_function(i2c_stream_R[5+i*2+1], i2c_stream_R[5+i*2]);
                 }
             xSemaphoreGive(tire_temp_sensor.mutex);
+        }
+        if(pending_notifications & FLAG_I2C5_FINISH) {
+            //clear flags
+            pending_notifications &= ~FLAG_I2C5_FINISH;
+
+            //TODO: CRC the data
+
+            xSemaphoreTake(tire_temp_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
+                for(int i=0; i<8; i++) {
+                    tire_temp_sensor.right[i] = tire_temp_transfer_function(i2c_stream_R[5+i*2+1], i2c_stream_R[5+i*2]);
+                }
+            xSemaphoreGive(tire_temp_sensor.mutex);   
         }
     }
 }
