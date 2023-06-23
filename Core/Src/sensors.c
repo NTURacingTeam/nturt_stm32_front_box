@@ -187,8 +187,7 @@ void sensor_handler(void* argument) {
         }
 
         if(pending_notifications & FLAG_READ_SUS_PEDAL) {
-            //clear bit
-            pending_notifications &= ~FLAG_READ_SUS_PEDAL;
+            pending_notifications &= ~FLAG_READ_SUS_PEDAL; //clear bit
 
             HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
             HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3);
@@ -238,7 +237,6 @@ void sensor_handler(void* argument) {
         
         }
         if(pending_notifications & FLAG_READ_TIRE_TEMP) {
-            //TODO: move the integer literals to somewhere else
             pending_notifications &= ~FLAG_READ_TIRE_TEMP;
             //read the values from both sensors
             HAL_I2C_Mem_Read_DMA(
@@ -259,8 +257,7 @@ void sensor_handler(void* argument) {
             //TODO: setup timeout exception and deal with error case where the stuff did not finish
         }
         if(pending_notifications & FLAG_I2C1_FINISH) {
-            //clear flags
-            pending_notifications &= ~FLAG_I2C1_FINISH;
+            pending_notifications &= ~FLAG_I2C1_FINISH; //clear flags
 
             //TODO: CRC the data
 
@@ -271,8 +268,7 @@ void sensor_handler(void* argument) {
             xSemaphoreGive(tire_temp_sensor.mutex);
         }
         if(pending_notifications & FLAG_I2C5_FINISH) {
-            //clear flags
-            pending_notifications &= ~FLAG_I2C5_FINISH;
+            pending_notifications &= ~FLAG_I2C5_FINISH; //clear flags
 
             //TODO: CRC the data
 
@@ -354,7 +350,8 @@ static inline float tire_temp_transfer_function(const uint8_t highByte, const ui
 
 static inline float oil_transfer_function(const uint16_t reading) {
     //see https://www.mouser.tw/datasheet/2/418/8/ENG_DS_MSP300_B1-1130121.pdf
-    return ((float)reading*4 - 1000) * (70)/(15000-1000);
+    //extra 3.3/3 is because a voltage divider moved 5V to 3V while max voltage on the system is 3.3V
+    return (((float)reading * 3.3/3)*4 - 1000) * (70)/(15000-1000);
 }
 
 /**
