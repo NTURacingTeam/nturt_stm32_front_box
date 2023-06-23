@@ -1013,11 +1013,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(BUTTON_BUILTIN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : MICRO_BSE_Pin HALL_L_Pin */
-  GPIO_InitStruct.Pin = MICRO_BSE_Pin|HALL_L_Pin;
+  /*Configure GPIO pin : MICRO_BSE_Pin */
+  GPIO_InitStruct.Pin = MICRO_BSE_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(MICRO_BSE_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : HALL_L_Pin */
+  GPIO_InitStruct.Pin = HALL_L_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+  HAL_GPIO_Init(HALL_L_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED_RTD_Pin */
   GPIO_InitStruct.Pin = LED_RTD_Pin;
@@ -1033,11 +1039,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : GEAR_HIGH_Pin MICRO_APPS_Pin GEAR_REVERSE_Pin BUTTON_RTD_Pin */
-  GPIO_InitStruct.Pin = GEAR_HIGH_Pin|MICRO_APPS_Pin|GEAR_REVERSE_Pin|BUTTON_RTD_Pin;
+  /*Configure GPIO pins : GEAR_HIGH_Pin GEAR_REVERSE_Pin BUTTON_RTD_Pin */
+  GPIO_InitStruct.Pin = GEAR_HIGH_Pin|GEAR_REVERSE_Pin|BUTTON_RTD_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : MICRO_APPS_Pin */
+  GPIO_InitStruct.Pin = MICRO_APPS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(MICRO_APPS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : USB_FS_PWR_EN_Pin SIREN_RTD_Pin */
   GPIO_InitStruct.Pin = USB_FS_PWR_EN_Pin|SIREN_RTD_Pin;

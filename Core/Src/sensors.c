@@ -122,7 +122,10 @@ TaskHandle_t sensors_data_task_handle;
 __dtcmram StaticTimer_t sensor_timer_buffer;
 TimerHandle_t sensor_timer_handle;
 
+//dma buffer zone
 static __dma_buffer adc_dma_buffer_t adc_dma_buffer = {0};
+static __dma_buffer uint8_t i2c_stream_R[22] = {0};
+static __dma_buffer uint8_t i2c_stream_L[22] = {0};
 
 void sensor_timer_callback(TimerHandle_t timer) {
     xTaskNotify(sensors_data_task_handle, FLAG_READ_SUS_PEDAL, eSetBits);
@@ -150,8 +153,6 @@ void sensor_handler(void* argument) {
     uint32_t pending_notifications = 0U;
 
     /*initialize D6T sensors*/
-    volatile uint8_t i2c_stream_R[22] = {0};
-    volatile uint8_t i2c_stream_L[22] = {0};
     //first wait for 20ms for the sensors to boot up
     vTaskDelay(pdMS_TO_TICKS(20));
     init_D6T(&hi2c5, i2c_stream_R, FLAG_D6T_STARTUP, &pending_notifications);
@@ -176,7 +177,6 @@ void sensor_handler(void* argument) {
             //TODO: set the conversion mode for the ADC to not blow up the buffers accidentally
             HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
             HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3);
-
 
             const uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin);
             const uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin);
@@ -251,7 +251,7 @@ void sensor_handler(void* argument) {
  */
 BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten) {    
     uint32_t flag_buf = 0U;
-    uint32_t flag_gotten = 0U;
+    uint32_t flag_gotten = *gotten;
     const TickType_t t0 = xTaskGetTickCount();
     TickType_t tlast = t0;
     
@@ -282,21 +282,24 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
  * https://hackmd.io/@nturacing/ByOF6I5T9/%2F2Jgh0ieyS0mc_r-6pHKQyQ
  */
 static inline float APPS1_transfer_function(const uint16_t reading) {
-    float buf = (float)(reading-860)/(3891-860);
+    const float apps1_compensation = 0.05;
+    float buf = (float)(reading-860)/(3891-860) + apps1_compensation;
     if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
     if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
     return buf;
 }
 
 static inline float APPS2_transfer_function (const uint16_t reading) {
-    float buf = (float)(reading*2-860)/(3891-860);
-    if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
-    if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
-    return buf;
+    const float apps2_compensation = 0.0;
+    float buf = (float)(reading*2-860)/(3891-860) + apps2_compensation;
+    if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) return 0;
+    else if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) return 1;
+    else return buf;
 }
 
 static inline float BSE_transfer_function(const uint16_t reading) {
-    float buf = (float)(reading-860)/(3891-860);
+	const float bse_compensation = 13.0;
+    float buf = (float)(reading-860)/(3891-860) + bse_compensation;
     if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
     if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
     return buf;
