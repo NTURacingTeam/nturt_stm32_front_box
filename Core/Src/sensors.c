@@ -58,23 +58,11 @@
 #define FLAG_READ_TIRE_TEMP 0x2000
 #define FLAG_D6T_STARTUP 0x100000
 
-//private functions
-static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
-static inline float APPS1_transfer_function(const uint16_t reading);
-static inline float APPS2_transfer_function (const uint16_t reading);
-static inline float BSE_transfer_function(const uint16_t reading);
-#define OUT_OF_BOUNDS_MARGIN 0.05
-static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
-static inline float oil_transfer_function(const uint16_t reading);
-
-static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
-
 /**
  * @brief structure to hold the data acquired by DMA
  * 
  */
 typedef struct{
-    //TODO: organize the buffer space and the peripheral settings since other sensors uses ADC as well
     uint16_t apps1; //ADC12 rank1
     uint16_t travel_r; //ADC12 rank2
     uint16_t strain; //ADC12 rank3
@@ -83,6 +71,21 @@ typedef struct{
     uint16_t bse; //ADC3 rank2
     uint16_t travel_l; //ADC3 rank3
 } adc_dma_buffer_t;
+
+/**
+ * @brief structure to hold the set of data that is present in the transmission of i2c data with D6T sensors
+ * @note see https://omronfs.omron.com/en_US/ecb/products/pdf/en_D6T_users_manual.pdf
+ * @note the position of the members is important in memory. pls don't move them around.
+ * 
+ */
+typedef struct {
+    uint8_t addr_write;     //< address of D6T sensor that is left shifted once. Also the starting address of CRC calculation.
+    uint8_t command;        //< command that is senst to the D6T sensor
+    uint8_t addr_read;      //< address of D6T sensor that is left shited once then added 1. sent after Restarted signal.
+    uint8_t PTAT[2];        //< the temperature of the sensor itself. Also the starting address of the Rx data buffer.
+    uint8_t temp[8][2];     //< the temperature of the 8 different measurement channels. low byte is sent first.
+    uint8_t PEC;            //< packet error check code. Is to be compared with the CRC-8 result of previous 21 bytes.
+} i2c_d6t_dma_buffer_t;
 
 /**
  * @brief global singleton resource that stores the current state of the pedal sensors
@@ -124,8 +127,21 @@ TimerHandle_t sensor_timer_handle;
 
 //dma buffer zone
 static __dma_buffer adc_dma_buffer_t adc_dma_buffer = {0};
-static __dma_buffer uint8_t i2c_stream_R[22] = {0};
-static __dma_buffer uint8_t i2c_stream_L[22] = {0};
+// static __dma_buffer uint8_t i2c_stream_R[22] = {0};
+// static __dma_buffer uint8_t i2c_stream_L[22] = {0};
+static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_R = {0};
+static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_L = {0};
+
+//private functions
+static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
+static inline float APPS1_transfer_function(const uint16_t reading);
+static inline float APPS2_transfer_function (const uint16_t reading);
+static inline float BSE_transfer_function(const uint16_t reading);
+#define OUT_OF_BOUNDS_MARGIN 0.05
+static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
+static inline float oil_transfer_function(const uint16_t reading);
+
+static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
 
 void sensor_timer_callback(TimerHandle_t timer) {
     xTaskNotify(sensors_data_task_handle, FLAG_READ_SUS_PEDAL, eSetBits);
@@ -149,14 +165,14 @@ void sensor_timer_callback(TimerHandle_t timer) {
 void sensor_handler(void* argument) {
     //TODO: handle every return status of FreeRTOS and HAL API
     (void)argument;
-    //variable to store the pending flags that is sent from xTaskNotify TODO: might be able to just leave the data in the 
+    //variable to store the pending flags that is sent from xTaskNotify
     uint32_t pending_notifications = 0U;
 
     /*initialize D6T sensors*/
     //first wait for 20ms for the sensors to boot up
     vTaskDelay(pdMS_TO_TICKS(20));
-    init_D6T(&hi2c5, i2c_stream_R, FLAG_D6T_STARTUP, &pending_notifications);
-    init_D6T(&hi2c1, i2c_stream_L, FLAG_D6T_STARTUP, &pending_notifications);
+    init_D6T(&hi2c5, &d6t_dma_buffer_R, FLAG_D6T_STARTUP, &pending_notifications);
+    init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications);
     //wait for 500ms after initialization before starting to query the sensors
     vTaskDelay(pdMS_TO_TICKS(500));
     
@@ -174,7 +190,6 @@ void sensor_handler(void* argument) {
             //clear bit
             pending_notifications &= ~FLAG_READ_SUS_PEDAL;
 
-            //TODO: set the conversion mode for the ADC to not blow up the buffers accidentally
             HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
             HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3);
 
@@ -226,8 +241,20 @@ void sensor_handler(void* argument) {
             //TODO: move the integer literals to somewhere else
             pending_notifications &= ~FLAG_READ_TIRE_TEMP;
             //read the values from both sensors
-            HAL_I2C_Mem_Read_DMA(&hi2c5, i2c_stream_R[0], i2c_stream_R[1], 1, &(i2c_stream_R[3]), 19);
-            HAL_I2C_Mem_Read_DMA(&hi2c1, i2c_stream_L[0], i2c_stream_L[1], 1, &(i2c_stream_L[3]), 19);
+            HAL_I2C_Mem_Read_DMA(
+                &hi2c5,
+                d6t_dma_buffer_R.addr_write, 
+                d6t_dma_buffer_R.command, 
+                1, 
+                &(d6t_dma_buffer_R.PTAT[0]), 
+                sizeof(d6t_dma_buffer_R.PTAT)+sizeof(d6t_dma_buffer_R.temp)+sizeof(d6t_dma_buffer_R.PEC));
+            HAL_I2C_Mem_Read_DMA(
+                &hi2c1, 
+                d6t_dma_buffer_L.addr_write, 
+                d6t_dma_buffer_L.command, 
+                1, 
+                &(d6t_dma_buffer_L.PTAT[0]), 
+                sizeof(d6t_dma_buffer_L.PTAT)+sizeof(d6t_dma_buffer_L.temp)+sizeof(d6t_dma_buffer_L.PEC));
             //wait for the DMA to finish, while we can do other stuff in the mean time
             //TODO: setup timeout exception and deal with error case where the stuff did not finish
         }
@@ -238,8 +265,8 @@ void sensor_handler(void* argument) {
             //TODO: CRC the data
 
             xSemaphoreTake(tire_temp_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
-                for(int i=0; i<8; i++) {
-                    tire_temp_sensor.left[i] = tire_temp_transfer_function(i2c_stream_L[5+i*2+1], i2c_stream_L[5+i*2]);
+                for(int i=0; i<sizeof(d6t_dma_buffer_L.temp)/sizeof(d6t_dma_buffer_L.temp[0]); i++) {
+                    tire_temp_sensor.left[i] = tire_temp_transfer_function(d6t_dma_buffer_L.temp[i][1], d6t_dma_buffer_L.temp[i][0]);
                 }
             xSemaphoreGive(tire_temp_sensor.mutex);
         }
@@ -250,8 +277,8 @@ void sensor_handler(void* argument) {
             //TODO: CRC the data
 
             xSemaphoreTake(tire_temp_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
-                for(int i=0; i<8; i++) {
-                    tire_temp_sensor.right[i] = tire_temp_transfer_function(i2c_stream_R[5+i*2+1], i2c_stream_R[5+i*2]);
+                for(int i=0; i<sizeof(d6t_dma_buffer_R.temp)/sizeof(d6t_dma_buffer_R.temp[0]); i++) {
+                    tire_temp_sensor.right[i] = tire_temp_transfer_function(d6t_dma_buffer_R.temp[i][1], d6t_dma_buffer_R.temp[i][0]);
                 }
             xSemaphoreGive(tire_temp_sensor.mutex);   
         }
@@ -338,7 +365,7 @@ static inline float oil_transfer_function(const uint16_t reading) {
  * @param txThreadFlag the task notification flag used to indicate completion of transfer
  * @param otherflags the other flags that might be caught when are waiting for the the DMA to complete through FreeRTOS notifications
  */
-static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags) {
+static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags) {
     //TODO: use the return value to report error
     //fixed parameters of D6T sensors: address, I2C command to get data, and the startup transmissions
     const uint8_t D6Taddr = 0b0001010;
@@ -352,9 +379,9 @@ static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile uint8_t* rawData, u
     };
 
     //fill the first 3 bytes of rawData with these data since they will be used in CRC
-    rawData[0] = D6Taddr<<1;
-    rawData[1] = getCommand;
-    rawData[2] = (D6Taddr << 1) + 1;
+    rawData->addr_write = D6Taddr<<1;
+    rawData->command = getCommand;
+    rawData->addr_read = (D6Taddr << 1) + 1;
 
     //init sensor 
     if(HAL_I2C_IsDeviceReady(hi2c, D6Taddr << 1, 5, 0xF) == HAL_OK) {
