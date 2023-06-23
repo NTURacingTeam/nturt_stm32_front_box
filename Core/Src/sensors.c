@@ -127,8 +127,6 @@ TimerHandle_t sensor_timer_handle;
 
 //dma buffer zone
 static __dma_buffer adc_dma_buffer_t adc_dma_buffer = {0};
-// static __dma_buffer uint8_t i2c_stream_R[22] = {0};
-// static __dma_buffer uint8_t i2c_stream_L[22] = {0};
 static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_R = {0};
 static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_L = {0};
 
@@ -138,6 +136,7 @@ static inline float APPS1_transfer_function(const uint16_t reading);
 static inline float APPS2_transfer_function (const uint16_t reading);
 static inline float BSE_transfer_function(const uint16_t reading);
 #define OUT_OF_BOUNDS_MARGIN 0.05
+#define START_TO_OUTPUT_MARGIN 0.007
 static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
 static inline float oil_transfer_function(const uint16_t reading);
 
@@ -323,25 +322,52 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
 static inline float APPS1_transfer_function(const uint16_t reading) {
     const float apps1_compensation = 0.05;
     float buf = (float)(reading-860)/(3891-860) + apps1_compensation;
-    if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
-    if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
-    return buf;
+    if(buf < 0) {
+        if(buf > -(OUT_OF_BOUNDS_MARGIN)) return 0;
+        else return buf;
+    } 
+    else if(buf > 1) {
+        if(buf < 1 + OUT_OF_BOUNDS_MARGIN) return 1;
+        else return buf;
+    }
+    else {
+        if(buf < START_TO_OUTPUT_MARGIN) return 0;
+        else return buf;
+    }
 }
 
 static inline float APPS2_transfer_function (const uint16_t reading) {
     const float apps2_compensation = 0.0;
     float buf = (float)(reading*2-860)/(3891-860) + apps2_compensation;
-    if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) return 0;
-    else if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) return 1;
-    else return buf;
+    if(buf < 0) {
+        if(buf > -(OUT_OF_BOUNDS_MARGIN)) return 0;
+        else return buf;
+    } 
+    else if(buf > 1) {
+        if(buf < 1 + OUT_OF_BOUNDS_MARGIN) return 1;
+        else return buf;
+    }
+    else {
+        if(buf < START_TO_OUTPUT_MARGIN) return 0;
+        else return buf;
+    }
 }
 
 static inline float BSE_transfer_function(const uint16_t reading) {
 	const float bse_compensation = 13.0;
     float buf = (float)(reading-860)/(3891-860) + bse_compensation;
-    if(buf < 0 && buf > -(OUT_OF_BOUNDS_MARGIN)) buf = 0;
-    if(buf > 1 && buf > OUT_OF_BOUNDS_MARGIN) buf = 1;
-    return buf;
+    if(buf < 0) {
+        if(buf > -(OUT_OF_BOUNDS_MARGIN)) return 0;
+        else return buf;
+    } 
+    else if(buf > 1) {
+        if(buf < 1 + OUT_OF_BOUNDS_MARGIN) return 1;
+        else return buf;
+    }
+    else {
+        if(buf < START_TO_OUTPUT_MARGIN) return 0;
+        else return buf;
+    }
 }
 
 static inline float tire_temp_transfer_function(const uint8_t highByte, const uint8_t lowByte) {
