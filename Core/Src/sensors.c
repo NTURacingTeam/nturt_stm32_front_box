@@ -82,10 +82,17 @@ typedef struct {
     uint8_t addr_write;     //< address of D6T sensor that is left shifted once. Also the starting address of CRC calculation.
     uint8_t command;        //< command that is senst to the D6T sensor
     uint8_t addr_read;      //< address of D6T sensor that is left shited once then added 1. sent after Restarted signal.
-    uint8_t PTAT[2];        //< the temperature of the sensor itself. Also the starting address of the Rx data buffer.
-    uint8_t temp[8][2];     //< the temperature of the 8 different measurement channels. low byte is sent first.
+    struct {
+        uint8_t low;        //< the low byte of the sensor comes first before the high byte in the 16bit data.
+        uint8_t high;
+    }PTAT;                  //< the temperature of the sensor itself. Also the starting address of the Rx data buffer.        
+    struct {
+        uint8_t low;
+        uint8_t high;    
+    } temp[8];              //< the temperature of the 8 different measurement channels. low byte is sent first.
     uint8_t PEC;            //< packet error check code. Is to be compared with the CRC-8 result of previous 21 bytes.
 } i2c_d6t_dma_buffer_t;
+
 
 /**
  * @brief global singleton resource that stores the current state of the pedal sensors
@@ -243,14 +250,14 @@ void sensor_handler(void* argument) {
                 d6t_dma_buffer_R.addr_write, 
                 d6t_dma_buffer_R.command, 
                 1, 
-                &(d6t_dma_buffer_R.PTAT[0]), 
+                &(d6t_dma_buffer_R.PTAT.low), 
                 sizeof(d6t_dma_buffer_R.PTAT)+sizeof(d6t_dma_buffer_R.temp)+sizeof(d6t_dma_buffer_R.PEC));
             HAL_I2C_Mem_Read_DMA(
                 &hi2c1, 
                 d6t_dma_buffer_L.addr_write, 
                 d6t_dma_buffer_L.command, 
                 1, 
-                &(d6t_dma_buffer_L.PTAT[0]), 
+                &(d6t_dma_buffer_L.PTAT.low), 
                 sizeof(d6t_dma_buffer_L.PTAT)+sizeof(d6t_dma_buffer_L.temp)+sizeof(d6t_dma_buffer_L.PEC));
             //wait for the DMA to finish, while we can do other stuff in the mean time
             //TODO: setup timeout exception and deal with error case where the stuff did not finish
@@ -262,7 +269,7 @@ void sensor_handler(void* argument) {
 
             xSemaphoreTake(tire_temp_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 for(int i=0; i<sizeof(d6t_dma_buffer_L.temp)/sizeof(d6t_dma_buffer_L.temp[0]); i++) {
-                    tire_temp_sensor.left[i] = tire_temp_transfer_function(d6t_dma_buffer_L.temp[i][1], d6t_dma_buffer_L.temp[i][0]);
+                    tire_temp_sensor.left[i] = tire_temp_transfer_function(d6t_dma_buffer_L.temp[i].high, d6t_dma_buffer_L.temp[i].low);
                 }
             xSemaphoreGive(tire_temp_sensor.mutex);
         }
@@ -273,7 +280,7 @@ void sensor_handler(void* argument) {
 
             xSemaphoreTake(tire_temp_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 for(int i=0; i<sizeof(d6t_dma_buffer_R.temp)/sizeof(d6t_dma_buffer_R.temp[0]); i++) {
-                    tire_temp_sensor.right[i] = tire_temp_transfer_function(d6t_dma_buffer_R.temp[i][1], d6t_dma_buffer_R.temp[i][0]);
+                    tire_temp_sensor.right[i] = tire_temp_transfer_function(d6t_dma_buffer_R.temp[i].high, d6t_dma_buffer_R.temp[i].low);
                 }
             xSemaphoreGive(tire_temp_sensor.mutex);   
         }
