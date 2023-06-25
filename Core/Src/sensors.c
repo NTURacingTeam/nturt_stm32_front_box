@@ -186,8 +186,8 @@ void sensor_handler(void* argument) {
 
     /*initialize the pedal sensors' compensation*/
     //wait until the pedals are set back to zero
-    while(  HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin) != GPIO_PIN_SET || 
-            HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin) != GPIO_PIN_SET ) {
+    while(  HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin) != GPIO_PIN_RESET ||
+            HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin) != GPIO_PIN_RESET ) {
         vTaskDelay(pdMS_TO_TICKS(3));
     }
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
@@ -355,16 +355,16 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
  * https://hackmd.io/@nturacing/ByOF6I5T9/%2F2Jgh0ieyS0mc_r-6pHKQyQ
  */
 static inline float APPS1_transfer_function(const uint16_t reading, const float compensation) {
-    float buf = (float)(reading-860)/(3891-860) + compensation;
+    return (float)(reading-860)/(3891-860) + compensation;
 }
 
 static inline float APPS2_transfer_function (const uint16_t reading, const float compensation) {
-    float buf = (float)(reading*2-860)/(3891-860) + compensation;
+    return (float)(reading*2-860)/(3891-860) + compensation;
 }
 
 static inline float BSE_transfer_function(const uint16_t reading, const float compensation) {
     // since we only use 2.5~24.5mm part of the domain instead of the full 0~25, we have
-    float buf = (float)(reading-82)/(3686-82) + compensation;
+    return (float)(reading-82)/(3686-82) + compensation;
 }
 
 float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge) {
