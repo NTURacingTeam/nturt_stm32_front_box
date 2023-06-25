@@ -28,8 +28,8 @@ typedef struct {
 extern pedal_data_t pedal;
 
 typedef struct {
-    uint16_t left;
-    uint16_t right;
+    float left;
+    float right;
     uint16_t strain;
     float oil_pressure;
     SemaphoreHandle_t mutex;

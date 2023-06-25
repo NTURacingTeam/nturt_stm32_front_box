@@ -108,8 +108,8 @@ pedal_data_t pedal = {
 };
 
 travel_strain_data_t travel_strain_oil_sensor = {
-    .left = 0,
-    .right = 0,
+    .left = 0.0,
+    .right = 0.0,
     .strain = 0,
     .oil_pressure = 0.0
     //mutex is initialized in user_main.c along with everything freertos
@@ -139,6 +139,7 @@ static inline float APPS2_transfer_function (const uint16_t reading, const float
 static inline float BSE_transfer_function(const uint16_t reading, float);
 static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
 static inline float oil_transfer_function(const uint16_t reading);
+static inline float travel_transfer_function (const uint16_t reading);
 #define START_TO_OUTPUT_MARGIN 0.007
 #define OUT_OF_BOUNDS_MARGIN 0.05 //TODO: where do we put these fuzzy bound constants
 float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge);
@@ -262,8 +263,8 @@ void sensor_handler(void* argument) {
         
             //update the travel sensor's value
             xSemaphoreTake(travel_strain_oil_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
-                travel_strain_oil_sensor.left = adc_dma_buffer.travel_l;
-                travel_strain_oil_sensor.right = adc_dma_buffer.travel_r;
+                travel_strain_oil_sensor.left = travel_transfer_function(adc_dma_buffer.travel_l);
+                travel_strain_oil_sensor.right = travel_transfer_function(adc_dma_buffer.travel_r);
                 travel_strain_oil_sensor.strain = adc_dma_buffer.strain;
                 travel_strain_oil_sensor.oil_pressure = oil_transfer_function(adc_dma_buffer.oil);
             xSemaphoreGive(travel_strain_oil_sensor.mutex);
@@ -383,6 +384,10 @@ float fuzzy_edge_remover(const float raw, const float highEdge, const float lowE
 
 static inline float tire_temp_transfer_function(const uint8_t highByte, const uint8_t lowByte) {
     return (float)((((int16_t)highByte) << 8) + (int16_t)lowByte)/5;
+}
+
+static inline float travel_transfer_function (const uint16_t reading) {
+    return 75 - (float)reading/4096 * 75;
 }
 
 static inline float oil_transfer_function(const uint16_t reading) {
