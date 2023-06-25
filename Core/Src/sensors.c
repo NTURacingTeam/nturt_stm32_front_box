@@ -134,13 +134,14 @@ TimerHandle_t sensor_timer_handle;
 
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
-static inline float APPS1_transfer_function(const uint16_t reading);
-static inline float APPS2_transfer_function (const uint16_t reading);
-static inline float BSE_transfer_function(const uint16_t reading);
-#define OUT_OF_BOUNDS_MARGIN 0.05
-#define START_TO_OUTPUT_MARGIN 0.007
+static inline float APPS1_transfer_function(const uint16_t reading, const float);
+static inline float APPS2_transfer_function (const uint16_t reading, const float);
+static inline float BSE_transfer_function(const uint16_t reading, float);
 static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
 static inline float oil_transfer_function(const uint16_t reading);
+#define START_TO_OUTPUT_MARGIN 0.007
+#define OUT_OF_BOUNDS_MARGIN 0.05 //TODO: where do we put these fuzzy bound constants
+float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge);
 
 static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
 
@@ -181,6 +182,20 @@ void sensor_handler(void* argument) {
     init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications);
     //wait for 500ms after initialization before starting to query the sensors
     vTaskDelay(pdMS_TO_TICKS(500));
+
+    /*initialize the pedal sensors' compensation*/
+    //wait until the pedals are set back to zero
+    while(  HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin) != GPIO_PIN_SET || 
+            HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin) != GPIO_PIN_SET ) {
+        vTaskDelay(pdMS_TO_TICKS(3));
+    }
+    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
+    HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3);
+    //wait for both flags to be set
+    wait_for_notif_flags(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH, portMAX_DELAY, &pending_notifications);
+    const float apps1_compensation = - APPS1_transfer_function(adc_dma_buffer.apps1, 0);
+    const float apps2_compensation = - APPS2_transfer_function(adc_dma_buffer.apps2, 0);
+    const float bse_compensation = - BSE_transfer_function(adc_dma_buffer.bse, 0);
     
     //start the initial read, and start the timer that should later notifies this task to do stuff again
     xTaskNotify(xTaskGetCurrentTaskHandle(), FLAG_READ_SUS_PEDAL | FLAG_READ_TIRE_TEMP, eSetBits);
@@ -215,9 +230,9 @@ void sensor_handler(void* argument) {
         
             //TODO: another error handler for implausibility
             //TODO: how to use errorhandler API
-            const float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
-            const float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
-            const float bse = BSE_transfer_function(adc_dma_buffer.bse);
+            const float apps1 = fuzzy_edge_remover(APPS1_transfer_function(adc_dma_buffer.apps1, apps1_compensation), 1.0, 0.0);
+            const float apps2 = fuzzy_edge_remover(APPS2_transfer_function(adc_dma_buffer.apps2, apps2_compensation), 1.0, 0.0);
+            const float bse = fuzzy_edge_remover(BSE_transfer_function(adc_dma_buffer.bse, bse_compensation), 1.0, 0.0);
 
             uint32_t prevErr = 0;
             ErrorHandler_get_error(&error_handler, &prevErr);
@@ -338,55 +353,31 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
  * The detailed description about the transfer function can be found here:
  * https://hackmd.io/@nturacing/ByOF6I5T9/%2F2Jgh0ieyS0mc_r-6pHKQyQ
  */
-static inline float APPS1_transfer_function(const uint16_t reading) {
-    const float apps1_compensation = 0.05;
-    float buf = (float)(reading-860)/(3891-860) + apps1_compensation;
-    if(buf < 0) {
-        if(buf > -(OUT_OF_BOUNDS_MARGIN)) return 0;
-        else return buf;
-    } 
-    else if(buf > 1) {
-        if(buf < 1 + OUT_OF_BOUNDS_MARGIN) return 1;
-        else return buf;
-    }
-    else {
-        if(buf < START_TO_OUTPUT_MARGIN) return 0;
-        else return buf;
-    }
+static inline float APPS1_transfer_function(const uint16_t reading, const float compensation) {
+    float buf = (float)(reading-860)/(3891-860) + compensation;
 }
 
-static inline float APPS2_transfer_function (const uint16_t reading) {
-    const float apps2_compensation = 0.0;
-    float buf = (float)(reading*2-860)/(3891-860) + apps2_compensation;
-    if(buf < 0) {
-        if(buf > -(OUT_OF_BOUNDS_MARGIN)) return 0;
-        else return buf;
-    } 
-    else if(buf > 1) {
-        if(buf < 1 + OUT_OF_BOUNDS_MARGIN) return 1;
-        else return buf;
-    }
-    else {
-        if(buf < START_TO_OUTPUT_MARGIN) return 0;
-        else return buf;
-    }
+static inline float APPS2_transfer_function (const uint16_t reading, const float compensation) {
+    float buf = (float)(reading*2-860)/(3891-860) + compensation;
 }
 
-static inline float BSE_transfer_function(const uint16_t reading) {
-	const float bse_compensation = -0.08;
+static inline float BSE_transfer_function(const uint16_t reading, const float compensation) {
     // since we only use 2.5~24.5mm part of the domain instead of the full 0~25, we have
-    float buf = (float)(reading-82)/(3686-82) + bse_compensation;
-    if(buf < 0) {
-        if(buf > -(OUT_OF_BOUNDS_MARGIN)) return 0;
-        else return buf;
+    float buf = (float)(reading-82)/(3686-82) + compensation;
+}
+
+float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge) {
+    if(raw < lowEdge) {
+        if(raw > -(OUT_OF_BOUNDS_MARGIN) + lowEdge) return lowEdge;
+        else return raw;
     } 
-    else if(buf > 1) {
-        if(buf < 1 + OUT_OF_BOUNDS_MARGIN) return 1;
-        else return buf;
+    else if(raw > highEdge) {
+        if(raw < highEdge + OUT_OF_BOUNDS_MARGIN) return highEdge;
+        else return raw;
     }
     else {
-        if(buf < START_TO_OUTPUT_MARGIN) return 0;
-        else return buf;
+        if(raw < START_TO_OUTPUT_MARGIN + lowEdge) return lowEdge;
+        else return raw;
     }
 }
 
