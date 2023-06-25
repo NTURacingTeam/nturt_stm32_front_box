@@ -132,11 +132,6 @@ TaskHandle_t sensors_data_task_handle;
 __dtcmram StaticTimer_t sensor_timer_buffer;
 TimerHandle_t sensor_timer_handle;
 
-//dma buffer zone
-static __dma_buffer adc_dma_buffer_t adc_dma_buffer = {0};
-static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_R = {0};
-static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_L = {0};
-
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
 static inline float APPS1_transfer_function(const uint16_t reading);
@@ -169,6 +164,11 @@ void sensor_timer_callback(TimerHandle_t timer) {
  * 
  */
 void sensor_handler(void* argument) {
+    //dma buffer zone
+    static __dma_buffer adc_dma_buffer_t adc_dma_buffer = {0};
+    static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_R = {0};
+    static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_L = {0};
+
     //TODO: handle every return status of FreeRTOS and HAL API
     (void)argument;
     //variable to store the pending flags that is sent from xTaskNotify
