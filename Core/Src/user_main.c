@@ -78,8 +78,8 @@ void user_init() {
 
   // stm32_module
 //  button_module_init();
-//  ErrorHandler_ctor(&error_handler);
-//  ErrorHandler_start(&error_handler);
+ ErrorHandler_ctor(&error_handler);
+ ErrorHandler_start(&error_handler);
 //  led_module_init();
 //
 //  // project

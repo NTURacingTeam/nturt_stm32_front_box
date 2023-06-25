@@ -216,15 +216,27 @@ void sensor_handler(void* argument) {
             //TODO: another error handler for implausibility
             //TODO: how to use errorhandler API
             const float apps1 = APPS1_transfer_function(adc_dma_buffer.apps1);
-            if(apps1 > 1.0 || apps1 < 0.0) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
-
             const float apps2 = APPS2_transfer_function(adc_dma_buffer.apps2);
-            if(apps2 > 1.0 || apps2 < 0.0) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
-
-            if(apps1-apps2 > 0.1 || apps2-apps1 > 0.1) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET); 
-            
             const float bse = BSE_transfer_function(adc_dma_buffer.bse);
-            if(bse > 1.0 || bse < 0.0) ErrorHandler_write_error(&error_handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET); 
+
+            uint32_t prevErr = 0;
+            ErrorHandler_get_error(&error_handler, &prevErr);
+            const uint32_t isAppsErrSet = prevErr & ERROR_CODE_APPS_IMPLAUSIBILITY;
+            const uint32_t isBseErrSet = prevErr & ERROR_CODE_BSE_IMPLAUSIBILITY;
+
+            if( apps1 > 1.0 || apps1 < 0.0 || apps2 > 1.0 || apps2 < 0.0 || apps1-apps2 > 0.1 || apps2-apps1 > 0.1 ) {
+                if(!isAppsErrSet) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET);
+            }
+            else if(isAppsErrSet){
+                ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_CLEAR);
+            }
+            
+            if(bse > 1.0 || bse < 0.0) {
+                if(!isBseErrSet) ErrorHandler_write_error(&error_handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
+            }
+            else if(isBseErrSet) {
+                ErrorHandler_write_error(&error_handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_CLEAR);
+            }
             
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 pedal.apps1 = apps1;
@@ -361,8 +373,9 @@ static inline float APPS2_transfer_function (const uint16_t reading) {
 }
 
 static inline float BSE_transfer_function(const uint16_t reading) {
-	const float bse_compensation = 13.0;
-    float buf = (float)(reading-860)/(3891-860) + bse_compensation;
+	const float bse_compensation = -0.08;
+    // since we only use 2.5~24.5mm part of the domain instead of the full 0~25, we have
+    float buf = (float)(reading-82)/(3686-82) + bse_compensation;
     if(buf < 0) {
         if(buf > -(OUT_OF_BOUNDS_MARGIN)) return 0;
         else return buf;
