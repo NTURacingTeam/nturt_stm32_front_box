@@ -49,13 +49,16 @@
 #define MUTEX_TIMEOUT 0x02
 #define ADC_TIMEOUT 0x02
 #define I2C_TIMEOUT 0xFF
+#define SPI_TIMEOUT 0x02
 
 #define FLAG_ADC1_FINISH 0x10
 #define FLAG_ADC3_FINISH 0x20
 #define FLAG_I2C5_FINISH 0x40
 #define FLAG_I2C1_FINISH 0x80
+#define FLAG_SPI4_FINISH 0x100
 #define FLAG_READ_SUS_PEDAL 0x1000
 #define FLAG_READ_TIRE_TEMP 0x2000
+#define FLAG_READ_STEER 0x4000
 #define FLAG_D6T_STARTUP 0x100000
 
 /**
@@ -170,6 +173,8 @@ void sensor_handler(void* argument) {
     static __dma_buffer adc_dma_buffer_t adc_dma_buffer = {0};
     static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_R = {0};
     static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_L = {0};
+    static __dma_buffer uint8_t spi_rx_dma_buffer[4] = {0};
+    static __dma_buffer uint8_t spi_tx_dma_buffer[4] = {0};
 
     //TODO: handle every return status of FreeRTOS and HAL API
     (void)argument;
@@ -312,6 +317,36 @@ void sensor_handler(void* argument) {
                 }
             xSemaphoreGive(tire_temp_sensor.mutex);   
         }
+        if(pending_notifications & FLAG_READ_STEER) {
+            //TODO: set the SPI and DMA up
+            //TODO: do we use leave the control back to the top between waits
+            //see https://www.cuidevices.com/product/resource/amt22.pdf
+            //pull CS low
+            HAL_GPIO_WritePin(ENCODER_SS_GPIO_Port, ENCODER_SS_Pin, GPIO_PIN_RESET);
+
+            //wait for T_CLK - 2.5us
+
+            //high byte transaction
+            HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_dma_buffer, spi_rx_dma_buffer, 1);
+            wait_for_notif_flags(FLAG_SPI4_FINISH, SPI_TIMEOUT, &pending_notifications);
+
+            //wait for T_B - 2.5us
+            
+            //low byte transaction
+            HAL_SPI_TransmitReceive_IT(&hspi4, &spi_tx_dma_buffer + 1, &spi_rx_dma_buffer + 1, 1);
+            wait_for_notif_flags(FLAG_SPI4_FINISH, SPI_TIMEOUT, &pending_notifications);
+
+            //wait for T_R - 3us
+
+            //CRC?
+
+            //calculate position and put the stuff in to variables
+            uint16_t position = (uint16_t)spi_rx_dma_buffer[0] << 8-2 + (uint16_t)spi_tx_dma_buffer[1] >> 2;
+            
+            //pull CS high after wait for T_R
+            //wait_for_notif_flags();
+            HAL_GPIO_WritePin(ENCODER_SS_GPIO_Port, ENCODER_SS_Pin, GPIO_PIN_SET);
+        }
     }
 }
 
@@ -451,5 +486,11 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
         xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC1_FINISH, eSetBits, NULL);
     } else if(hadc == &hadc3) {
         xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC3_FINISH, eSetBits, NULL);
+    }
+}
+
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
+    if(hspi == &hspi4) {
+        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_SPI4_FINISH, eSetBits, NULL);
     }
 }
