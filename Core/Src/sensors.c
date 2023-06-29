@@ -62,6 +62,8 @@
 #define FLAG_READ_TIRE_TEMP 0x2000
 #define FLAG_READ_STEER 0x4000
 #define FLAG_D6T_STARTUP 0x100000
+#define FLAG_HALL_EDGE_RIGHT 0x20000
+#define FLAG_HALL_EDGE_LEFT 0x40000
 
 /**
  * @brief structure to hold the data acquired by DMA
@@ -128,6 +130,12 @@ tire_temp_data_t tire_temp_sensor = {
 
 steer_angle_data_t steer_angle_sensor = {
     .steering_angle = 0
+    //mutex is initialized in user_main.c along with everything freertos 
+};
+
+wheel_speed_data_t wheel_speed_sensor = {
+    .left = 0.0,
+    .right = 0.0
     //mutex is initialized in user_main.c along with everything freertos 
 };
 
