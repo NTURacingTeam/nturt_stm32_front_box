@@ -11,6 +11,7 @@
 // freertos timer info
 #define SENSOR_TIMER_PERIOD 5 //in ms
 #define TIRE_TEMP_PERIOD 250 //in ms
+#define STEER_ANGLE_PERIOD 5 //in ms
 
 /**
  * @brief structure to hold the data that is outputed by this function

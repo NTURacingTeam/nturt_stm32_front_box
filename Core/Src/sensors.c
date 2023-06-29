@@ -158,6 +158,11 @@ void sensor_timer_callback(TimerHandle_t timer) {
     expire_count++;
     vTimerSetTimerID(timer, (void*)expire_count);
 
+    //TODO: unfreeze this to let the D6T start running after setting everything up in MX
+    // if((uint32_t)pvTimerGetTimerID(timer) >= STEER_ANGLE_PERIOD/SENSOR_TIMER_PERIOD) {
+    //     xTaskNotify(sensors_data_task_handle, FLAG_READ_STEER, eSetBits);
+    // }
+
     if((uint32_t)pvTimerGetTimerID(timer) >= TIRE_TEMP_PERIOD/SENSOR_TIMER_PERIOD) {
         xTaskNotify(sensors_data_task_handle, FLAG_READ_TIRE_TEMP, eSetBits);
         vTimerSetTimerID(timer, (void*)0);
@@ -344,18 +349,17 @@ void sensor_handler(void* argument) {
 
             //wait for T_R - 3us
             HAL_TIM_Base_Start_IT(&htim17);
-            wait_for_notif_flags(FLAG_3US_FINISH, pdMS_TO_TICKS(1), &pending_notifications);
 
-            //CRC?
+                //CRC?
 
-            //calculate position and put the stuff in to variables
-            const uint16_t position = ((uint16_t)spi_rx_dma_buffer[0] << 8-2) + ((uint16_t)spi_tx_dma_buffer[1] >> 2);
-            xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
-                steer_angle_sensor.steering_angle = steer_angle_transfer_function(position);
-            xSemaphoreGive(steer_angle_sensor.mutex);
+                //calculate position and put the stuff in to variables
+                const uint16_t position = ((uint16_t)spi_rx_dma_buffer[0] << 8-2) + ((uint16_t)spi_tx_dma_buffer[1] >> 2);
+                xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
+                    steer_angle_sensor.steering_angle = steer_angle_transfer_function(position);
+                xSemaphoreGive(steer_angle_sensor.mutex);
 
             //pull CS high after wait for T_R
-            //wait_for_notif_flags();
+            wait_for_notif_flags(FLAG_3US_FINISH, pdMS_TO_TICKS(1), &pending_notifications);
             HAL_GPIO_WritePin(ENCODER_SS_GPIO_Port, ENCODER_SS_Pin, GPIO_PIN_SET);
         }
     }
