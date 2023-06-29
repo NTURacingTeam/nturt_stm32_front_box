@@ -42,6 +42,7 @@
 
 // project include
 #include "project_def.h"
+#include "transfer_functions.h"
 
 //own include
 #include "sensors.h"
@@ -137,16 +138,6 @@ TimerHandle_t sensor_timer_handle;
 
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
-static inline float APPS1_transfer_function(const uint16_t reading, const float);
-static inline float APPS2_transfer_function (const uint16_t reading, const float);
-static inline float BSE_transfer_function(const uint16_t reading, float);
-static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
-static inline float oil_transfer_function(const uint16_t reading);
-static inline float travel_transfer_function (const uint16_t reading);
-#define START_TO_OUTPUT_MARGIN 0.007
-#define OUT_OF_BOUNDS_MARGIN 0.05 //TODO: where do we put these fuzzy bound constants
-float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge);
-
 static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
 
 void sensor_timer_callback(TimerHandle_t timer) {
@@ -380,56 +371,6 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
     return pdTRUE;
 }
 
-/**
- * @brief transfer function for the first APPS
- * 
- * @param reading the 12 bit value read from the ADC
- * @return float the normalized read value spanning from 0 to 1
- * 
- * The detailed description about the transfer function can be found here:
- * https://hackmd.io/@nturacing/ByOF6I5T9/%2F2Jgh0ieyS0mc_r-6pHKQyQ
- */
-static inline float APPS1_transfer_function(const uint16_t reading, const float compensation) {
-    return (float)(reading-860)/(3891-860) + compensation;
-}
-
-static inline float APPS2_transfer_function (const uint16_t reading, const float compensation) {
-    return (float)(reading*2-860)/(3891-860) + compensation;
-}
-
-static inline float BSE_transfer_function(const uint16_t reading, const float compensation) {
-    // since we only use 2.5~24.5mm part of the domain instead of the full 0~25, we have
-    return (float)(reading-82)/(3686-82) + compensation;
-}
-
-float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge) {
-    if(raw < lowEdge) {
-        if(raw > -(OUT_OF_BOUNDS_MARGIN) + lowEdge) return lowEdge;
-        else return raw;
-    } 
-    else if(raw > highEdge) {
-        if(raw < highEdge + OUT_OF_BOUNDS_MARGIN) return highEdge;
-        else return raw;
-    }
-    else {
-        if(raw < START_TO_OUTPUT_MARGIN + lowEdge) return lowEdge;
-        else return raw;
-    }
-}
-
-static inline float tire_temp_transfer_function(const uint8_t highByte, const uint8_t lowByte) {
-    return (float)((((int16_t)highByte) << 8) + (int16_t)lowByte)/5;
-}
-
-static inline float travel_transfer_function (const uint16_t reading) {
-    return 75 - (float)reading/4096 * 75;
-}
-
-static inline float oil_transfer_function(const uint16_t reading) {
-    //see https://www.mouser.tw/datasheet/2/418/8/ENG_DS_MSP300_B1-1130121.pdf
-    //extra 3.3/3 is because a voltage divider moved 5V to 3V while max voltage on the system is 3.3V
-    return (((float)reading * 3.3/3)*4 - 1000) * (70)/(15000-1000);
-}
 
 /**
  * @brief this function initializes the payload data of the i2c addresses and the D6T sensors themselves
