@@ -57,6 +57,7 @@
 #define FLAG_I2C5_FINISH 0x40
 #define FLAG_I2C1_FINISH 0x80
 #define FLAG_SPI4_FINISH 0x100
+#define FLAG_3US_FINISH 0x200 
 #define FLAG_READ_SUS_PEDAL 0x1000
 #define FLAG_READ_TIRE_TEMP 0x2000
 #define FLAG_READ_STEER 0x4000
@@ -140,6 +141,9 @@ TaskHandle_t sensors_data_task_handle;
 /*timer controls*/
 __dtcmram StaticTimer_t sensor_timer_buffer;
 TimerHandle_t sensor_timer_handle;
+
+//TODO:　ＴＨＩＳ　ＩＳ　Ａ　ＰＬＡＣＥＨＯＬＤＥＲ　ＶＡＲＩＡＢＬＥ，　ＲＥＭＥＭＢＥＲ　ＴＯ　ＲＥＭＯＶＥ　ＩＴ　ＡＦＴＥＲ　ＭＸ
+extern TIM_HandleTypeDef htim17;
 
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
@@ -320,19 +324,27 @@ void sensor_handler(void* argument) {
             //pull CS low
             HAL_GPIO_WritePin(ENCODER_SS_GPIO_Port, ENCODER_SS_Pin, GPIO_PIN_RESET);
 
-            //wait for T_CLK - 2.5us
+            //wait for T_CLK - 2.5us. we just wait 3ms for simplcity
+            //TODO: do we use other configuration such as one pulse mode to generate delay?
+            //TODO: remember to seup tim17 in MX
+            HAL_TIM_Base_Start_IT(&htim17);
+            wait_for_notif_flags(FLAG_3US_FINISH, pdMS_TO_TICKS(1), &pending_notifications);
 
             //high byte transaction
             HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_dma_buffer, spi_rx_dma_buffer, 1);
-            wait_for_notif_flags(FLAG_SPI4_FINISH, SPI_TIMEOUT, &pending_notifications);
+            wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications);
 
-            //wait for T_B - 2.5us
+            //wait for T_B - 2.5us. we just wait 3ms for simplcity
+            HAL_TIM_Base_Start_IT(&htim17);
+            wait_for_notif_flags(FLAG_3US_FINISH, pdMS_TO_TICKS(1), &pending_notifications);
             
             //low byte transaction
             HAL_SPI_TransmitReceive_IT(&hspi4, &spi_tx_dma_buffer[1], &spi_rx_dma_buffer[1], 1);
-            wait_for_notif_flags(FLAG_SPI4_FINISH, SPI_TIMEOUT, &pending_notifications);
+            wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications);
 
             //wait for T_R - 3us
+            HAL_TIM_Base_Start_IT(&htim17);
+            wait_for_notif_flags(FLAG_3US_FINISH, pdMS_TO_TICKS(1), &pending_notifications);
 
             //CRC?
 
@@ -442,4 +454,11 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
     if(hspi == &hspi4) {
         xTaskNotifyFromISR(sensors_data_task_handle, FLAG_SPI4_FINISH, eSetBits, NULL);
     }
+}
+
+void __delay3usdone(TIM_HandleTypeDef *htim) {
+    //TODO: refactor this thing because this just feels bad. How to link ISR properly
+    //note this is the htim17 ISR. htim17 is used for 3us delay here for AMT22
+    xTaskNotifyFromISR(sensors_data_task_handle, FLAG_3US_FINISH, eSetBits, NULL);
+    HAL_TIM_Base_Stop_IT(htim);
 }

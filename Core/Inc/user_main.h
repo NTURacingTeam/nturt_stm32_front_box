@@ -24,6 +24,7 @@
 #include "sensor_reader.h"
 #include "status_controller.h"
 #include "torque_controller.h"
+#include "sensors.h"
 
 /* Exported variable ---------------------------------------------------------*/
 // stm32_module
