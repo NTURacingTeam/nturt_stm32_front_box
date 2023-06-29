@@ -47,4 +47,10 @@ static inline float oil_transfer_function(const uint16_t reading) {
     return (((float)reading * 3.3/3)*4 - 1000) * (70)/(15000-1000);
 }
 
+static inline float steer_angle_transfer_function(const uint16_t reading) {
+    //see https://www.cuidevices.com/product/resource/amt22.pdf
+    //our model outputs 12bit number
+    return (float)reading * 360.0/4096.0;
+}
+
 #endif //_TRANSFER_FUNCTION_H

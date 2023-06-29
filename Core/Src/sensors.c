@@ -125,6 +125,11 @@ tire_temp_data_t tire_temp_sensor = {
     //mutex is initialized in user_main.c along with everything freertos
 };
 
+steer_angle_data_t steer_angle_sensor = {
+    .steering_angle = 0
+    //mutex is initialized in user_main.c along with everything freertos 
+};
+
 /*task controls*/
 // __dtcmram 
 uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
@@ -324,7 +329,7 @@ void sensor_handler(void* argument) {
             //wait for T_B - 2.5us
             
             //low byte transaction
-            HAL_SPI_TransmitReceive_IT(&hspi4, &spi_tx_dma_buffer + 1, &spi_rx_dma_buffer + 1, 1);
+            HAL_SPI_TransmitReceive_IT(&hspi4, &spi_tx_dma_buffer[1], &spi_rx_dma_buffer[1], 1);
             wait_for_notif_flags(FLAG_SPI4_FINISH, SPI_TIMEOUT, &pending_notifications);
 
             //wait for T_R - 3us
@@ -332,8 +337,11 @@ void sensor_handler(void* argument) {
             //CRC?
 
             //calculate position and put the stuff in to variables
-            uint16_t position = (uint16_t)spi_rx_dma_buffer[0] << 8-2 + (uint16_t)spi_tx_dma_buffer[1] >> 2;
-            
+            const uint16_t position = ((uint16_t)spi_rx_dma_buffer[0] << 8-2) + ((uint16_t)spi_tx_dma_buffer[1] >> 2);
+            xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
+                steer_angle_sensor.steering_angle = steer_angle_transfer_function(position);
+            xSemaphoreGive(steer_angle_sensor.mutex);
+
             //pull CS high after wait for T_R
             //wait_for_notif_flags();
             HAL_GPIO_WritePin(ENCODER_SS_GPIO_Port, ENCODER_SS_Pin, GPIO_PIN_SET);

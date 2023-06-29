@@ -45,6 +45,13 @@ typedef struct {
 
 extern tire_temp_data_t tire_temp_sensor;
 
+typedef struct {
+    float steering_angle;
+    SemaphoreHandle_t mutex;
+} steer_angle_data_t;
+
+extern steer_angle_data_t steer_angle_sensor;
+
 /*task controls*/
 void sensor_handler(void*);
 extern uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
