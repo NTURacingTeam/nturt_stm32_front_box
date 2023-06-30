@@ -62,7 +62,7 @@
 #define FLAG_READ_TIRE_TEMP 0x2000
 #define FLAG_READ_STEER 0x4000
 #define FLAG_D6T_STARTUP 0x100000
-#define FLAG_HALL_EDGE_RIGHT 0x20000
+#define FLAG_HALL_EDGE_RIGHT 0x20000 //TODO: makes sure the names are either hall or wheel speed but not both
 #define FLAG_HALL_EDGE_LEFT 0x40000
 
 /**
@@ -100,6 +100,14 @@ typedef struct {
     uint8_t PEC;            //< packet error check code. Is to be compared with the CRC-8 result of previous 21 bytes.
 } i2c_d6t_dma_buffer_t;
 
+typedef struct {
+    uint32_t elapsed_count;
+    uint32_t timer_count;
+} timer_time_t;
+
+static volatile timer_time_t hall_time_L = {0};
+static volatile timer_time_t hall_time_R = {0};
+static volatile uint32_t hall_timer_elapsed = 0;
 
 /**
  * @brief global singleton resource that stores the current state of the pedal sensors
@@ -152,6 +160,7 @@ TimerHandle_t sensor_timer_handle;
 
 //TODO:　ＴＨＩＳ　ＩＳ　Ａ　ＰＬＡＣＥＨＯＬＤＥＲ　ＶＡＲＩＡＢＬＥ，　ＲＥＭＥＭＢＥＲ　ＴＯ　ＲＥＭＯＶＥ　ＩＴ　ＡＦＴＥＲ　ＭＸ
 extern TIM_HandleTypeDef htim17;
+extern TIM_HandleTypeDef htim24;
 
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
@@ -188,6 +197,9 @@ void sensor_handler(void* argument) {
     static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_L = {0};
     static __dma_buffer uint8_t spi_rx_dma_buffer[4] = {0};
     static __dma_buffer uint8_t spi_tx_dma_buffer[4] = {0};
+
+    timer_time_t hall_time_L_last = {0};
+    timer_time_t hall_time_R_last = {0};
 
     //TODO: handle every return status of FreeRTOS and HAL API
     (void)argument;
@@ -288,6 +300,31 @@ void sensor_handler(void* argument) {
             xSemaphoreGive(travel_strain_oil_sensor.mutex);
         
         }
+        if(pending_notifications & FLAG_HALL_EDGE_LEFT) {
+            pending_notifications &= ~FLAG_HALL_EDGE_LEFT; //clear flags
+            const timer_time_t time_diff = {
+                .elapsed_count = hall_time_L.elapsed_count - hall_time_L_last.elapsed_count,
+                .timer_count = hall_time_L.timer_count - hall_time_L_last.timer_count
+            };
+            xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT);
+                //TODO: transfer function
+            xSemaphoreGive(wheel_speed_sensor.mutex);
+            hall_time_L_last.elapsed_count = hall_time_L.elapsed_count;
+            hall_time_L_last.timer_count = hall_time_L.timer_count;
+        }
+        if(pending_notifications & FLAG_HALL_EDGE_RIGHT) {
+            pending_notifications &= ~FLAG_HALL_EDGE_RIGHT; //clear flags
+
+            const timer_time_t time_diff = {
+                .elapsed_count = hall_time_R.elapsed_count - hall_time_R_last.elapsed_count,
+                .timer_count = hall_time_R.timer_count - hall_time_R_last.timer_count
+            };
+            xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT);
+                //TODO: transfer function
+            xSemaphoreGive(wheel_speed_sensor.mutex);
+            hall_time_R_last.elapsed_count = hall_time_R.elapsed_count;
+            hall_time_R_last.timer_count = hall_time_R.timer_count;
+        }
         if(pending_notifications & FLAG_READ_TIRE_TEMP) {
             pending_notifications &= ~FLAG_READ_TIRE_TEMP;
             //read the values from both sensors
@@ -331,6 +368,7 @@ void sensor_handler(void* argument) {
             xSemaphoreGive(tire_temp_sensor.mutex);   
         }
         if(pending_notifications & FLAG_READ_STEER) {
+            pending_notifications &= ~FLAG_READ_STEER; //clear flags
             //TODO: set the SPI and DMA up
             //TODO: do we use leave the control back to the top between waits
             //see https://www.cuidevices.com/product/resource/amt22.pdf
@@ -473,4 +511,21 @@ void __delay3usdone(TIM_HandleTypeDef *htim) {
     //note this is the htim17 ISR. htim17 is used for 3us delay here for AMT22
     xTaskNotifyFromISR(sensors_data_task_handle, FLAG_3US_FINISH, eSetBits, NULL);
     HAL_TIM_Base_Stop_IT(htim);
+}
+
+void __hall_timer_elapsed(TIM_HandleTypeDef *htim) {
+    hall_timer_elapsed++;
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    if(GPIO_Pin == HALL_L_Pin) {
+        hall_time_L.timer_count = __HAL_TIM_GET_COUNTER(&htim24);
+        hall_time_L.elapsed_count = hall_timer_elapsed;
+        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_HALL_EDGE_LEFT, eSetBits, NULL);
+    }   
+    if(GPIO_Pin == HALL_R_Pin) {
+        hall_time_R.timer_count = __HAL_TIM_GET_COUNTER(&htim24);
+        hall_time_R.elapsed_count = hall_timer_elapsed;
+        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_HALL_EDGE_RIGHT, eSetBits, NULL);
+    }
 }
