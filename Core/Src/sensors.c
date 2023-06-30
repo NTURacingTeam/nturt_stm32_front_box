@@ -302,10 +302,13 @@ void sensor_handler(void* argument) {
         }
         if(pending_notifications & FLAG_HALL_EDGE_LEFT) {
             pending_notifications &= ~FLAG_HALL_EDGE_LEFT; //clear flags
-            const timer_time_t time_diff = {
+            timer_time_t time_diff = {
                 .elapsed_count = hall_time_L.elapsed_count - hall_time_L_last.elapsed_count,
                 .timer_count = hall_time_L.timer_count - hall_time_L_last.timer_count
             };
+            if(hall_time_L.timer_count < hall_time_L_last.timer_count) {
+                time_diff.elapsed_count-=1;
+            }
             xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT);
                 //TODO: transfer function
             xSemaphoreGive(wheel_speed_sensor.mutex);
@@ -315,10 +318,13 @@ void sensor_handler(void* argument) {
         if(pending_notifications & FLAG_HALL_EDGE_RIGHT) {
             pending_notifications &= ~FLAG_HALL_EDGE_RIGHT; //clear flags
 
-            const timer_time_t time_diff = {
+            timer_time_t time_diff = {
                 .elapsed_count = hall_time_R.elapsed_count - hall_time_R_last.elapsed_count,
                 .timer_count = hall_time_R.timer_count - hall_time_R_last.timer_count
             };
+            if(hall_time_R.timer_count < hall_time_R_last.timer_count) {
+                time_diff.elapsed_count-=1;
+            }
             xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT);
                 //TODO: transfer function
             xSemaphoreGive(wheel_speed_sensor.mutex);

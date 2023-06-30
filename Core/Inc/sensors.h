@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "semphr.h"
 #include "timers.h"
+#include "user_main.h"
 
 /*macro: freertos object parameter*/
 #define SENSOR_DATA_TASK_STACK_SIZE 256
@@ -12,6 +13,11 @@
 #define SENSOR_TIMER_PERIOD 5 //in ms
 #define TIRE_TEMP_PERIOD 250 //in ms
 #define STEER_ANGLE_PERIOD 5 //in ms
+
+//regular timer info
+//TODO: move this into ioc and somehow sync this whth the actual timer
+#define WHEEL_SPEED_TIMER_PERIOD 1.0 //in ms
+#define WHEEL_SPEED_TIMER_COUNT_PERIOD 0.001 //in ms
 
 /**
  * @brief structure to hold the data that is outputed by this function
