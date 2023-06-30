@@ -302,34 +302,23 @@ void sensor_handler(void* argument) {
         }
         if(pending_notifications & FLAG_HALL_EDGE_LEFT) {
             pending_notifications &= ~FLAG_HALL_EDGE_LEFT; //clear flags
-            timer_time_t time_diff = {
-                .elapsed_count = hall_time_L.elapsed_count - hall_time_L_last.elapsed_count,
-                .timer_count = hall_time_L.timer_count - hall_time_L_last.timer_count
-            };
-            if(hall_time_L.timer_count < hall_time_L_last.timer_count) {
-                time_diff.elapsed_count-=1;
-            }
+
+            timer_time_t diff = {0};
+            update_time_stamp(&hall_time_L_last, &hall_time_L, &diff);
+
             xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT);
-                //TODO: transfer function
+                wheel_speed_sensor.left = wheel_speed_tranfser_function(diff.elapsed_count, diff.timer_count);
             xSemaphoreGive(wheel_speed_sensor.mutex);
-            hall_time_L_last.elapsed_count = hall_time_L.elapsed_count;
-            hall_time_L_last.timer_count = hall_time_L.timer_count;
         }
         if(pending_notifications & FLAG_HALL_EDGE_RIGHT) {
             pending_notifications &= ~FLAG_HALL_EDGE_RIGHT; //clear flags
 
-            timer_time_t time_diff = {
-                .elapsed_count = hall_time_R.elapsed_count - hall_time_R_last.elapsed_count,
-                .timer_count = hall_time_R.timer_count - hall_time_R_last.timer_count
-            };
-            if(hall_time_R.timer_count < hall_time_R_last.timer_count) {
-                time_diff.elapsed_count-=1;
-            }
+            timer_time_t diff = {0};
+            update_time_stamp(&hall_time_R_last, &hall_time_R, &diff);
+
             xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT);
-                //TODO: transfer function
+                wheel_speed_sensor.right = wheel_speed_tranfser_function(diff.elapsed_count, diff.timer_count);
             xSemaphoreGive(wheel_speed_sensor.mutex);
-            hall_time_R_last.elapsed_count = hall_time_R.elapsed_count;
-            hall_time_R_last.timer_count = hall_time_R.timer_count;
         }
         if(pending_notifications & FLAG_READ_TIRE_TEMP) {
             pending_notifications &= ~FLAG_READ_TIRE_TEMP;
@@ -483,6 +472,24 @@ static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_
     } else {
         //TODO: report error - cannot connect to sensor
     }
+}
+
+/**
+ * @brief this function calculates the difference between last and now, and updates the "now" time to "last"
+ * 
+ * @param last previous time this function is called
+ * @param now the new time stamp at which this time is called
+ * @param diff calculates the time difference between last and now
+ */
+void update_time_stamp(timer_time_t* last, const timer_time_t* now, timer_time_t* diff) {
+    diff->elapsed_count = now->elapsed_count - last->elapsed_count;
+    diff->timer_count = now->timer_count - last->timer_count;
+
+    if(now->timer_count < last->timer_count) {
+        diff->elapsed_count -= 1;
+    }
+    last->elapsed_count = now->elapsed_count;
+    last->timer_count = now->timer_count;
 }
 
 void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c) {
