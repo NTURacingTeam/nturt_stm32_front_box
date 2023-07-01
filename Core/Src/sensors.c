@@ -186,8 +186,8 @@ void sensor_handler(void* argument) {
 
     /*initialize the pedal sensors' compensation*/
     //wait until the pedals are set back to zero
-    while(  HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin) != GPIO_PIN_SET || 
-            HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin) != GPIO_PIN_SET ) {
+    while(  HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin) != GPIO_PIN_RESET ||
+            HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin) != GPIO_PIN_RESET ) {
         vTaskDelay(pdMS_TO_TICKS(3));
     }
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
