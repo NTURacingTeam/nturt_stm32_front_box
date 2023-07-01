@@ -17,9 +17,10 @@
 #include "dashboard_controller.h"
 #include "front_box_can.h"
 #include "project_def.h"
-#include "status_controller.h"
-#include "torque_controller.h"
 #include "sensors.h"
+#include "status_controller.h"
+#include "tests.h"
+#include "torque_controller.h"
 
 /* Exported variable ---------------------------------------------------------*/
 // stm32_module
@@ -30,7 +31,6 @@ __dtcmram LedController led_controller;
 // project
 __dtcmram DashboardController dashboard_controller;
 __dtcmram FrontBoxCan front_box_can;
-__dtcmram SensorReader sensor_reader;
 __dtcmram StatusController status_controller;
 __dtcmram TorqueController torque_controller;
 
@@ -77,43 +77,37 @@ void user_init() {
   HAL_GPIO_WritePin(LED_VCU_GPIO_Port, LED_VCU_Pin, GPIO_PIN_SET);
 
   // stm32_module
-//  button_module_init();
- ErrorHandler_ctor(&error_handler);
- ErrorHandler_start(&error_handler);
-//  led_module_init();
-//
-//  // project
-//  DashboardController_ctor(&dashboard_controller);
-//  DashboardController_start(&dashboard_controller);
-//  FrontBoxCan_ctor(&front_box_can, &hfdcan3);
-//  FrontBoxCan_start(&front_box_can);
-//  SensorReader_ctor(&sensor_reader);
-//  SensorReader_start(&sensor_reader);
-//  StatusController_ctor(&status_controller);
-//  StatusController_start(&status_controller);
-//  TorqueController_ctor(&torque_controller);
-//  TorqueController_start(&torque_controller);
+  button_module_init();
+  ErrorHandler_ctor(&error_handler);
+  ErrorHandler_start(&error_handler);
+  led_module_init();
+
+// project
+#ifndef TEST
+  DashboardController_ctor(&dashboard_controller);
+  DashboardController_start(&dashboard_controller);
+  FrontBoxCan_ctor(&front_box_can, &hfdcan3);
+  FrontBoxCan_start(&front_box_can);
+  StatusController_ctor(&status_controller);
+  StatusController_start(&status_controller);
+  TorqueController_ctor(&torque_controller);
+  TorqueController_start(&torque_controller);
   sensors_data_task_handle = xTaskCreateStatic(
-      sensor_handler,
-      "sensors_data_task",
-      SENSOR_DATA_TASK_STACK_SIZE,
-      NULL,
-      TaskPriorityHigh,
-      sensors_data_task_buffer,
-      &sensors_data_task_cb
-  );
+      sensor_handler, "sensors_data_task", SENSOR_DATA_TASK_STACK_SIZE, NULL,
+      TaskPriorityHigh, sensors_data_task_buffer, &sensors_data_task_cb);
   sensor_timer_handle = xTimerCreateStatic(
-    "sensors_data_timer",
-    pdMS_TO_TICKS(SENSOR_TIMER_PERIOD),
-    pdTRUE,
-    0,
-    sensor_timer_callback,
-    &sensor_timer_buffer
-  );
+      "sensors_data_timer", pdMS_TO_TICKS(SENSOR_TIMER_PERIOD), pdTRUE, 0,
+      sensor_timer_callback, &sensor_timer_buffer);
   pedal.mutex = xSemaphoreCreateMutex();
   travel_strain_oil_sensor.mutex = xSemaphoreCreateMutex();
   tire_temp_sensor.mutex = xSemaphoreCreateMutex();
+#endif  // TEST
 
+// test
+#ifdef LED_TEST
+  xTaskCreate(led_test, "led_test_task", configMINIMAL_STACK_SIZE, NULL,
+              TaskPriorityNormal, NULL);
+#endif  // LED_TEST
 
   // register error callback function
   ErrorHandler_add_error_callback(&error_handler, &auxiliary_error_callback_cb,
@@ -194,6 +188,7 @@ static void button_module_init() {
   ButtonMonitor_add_button(&button_monitor, &button_cb[MICRO_BSE],
                            MICRO_BSE_GPIO_Port, MICRO_BSE_Pin);
 
+#ifndef TEST
   ButtonMonitor_register_callback(&button_monitor, GEAR_HIGH,
                                   &TorqueController_gear_high_button_callback,
                                   (void *)&torque_controller);
@@ -201,6 +196,29 @@ static void button_module_init() {
       &button_monitor, GEAR_REVERSE,
       &TorqueController_gear_reverse_button_callback,
       (void *)&torque_controller);
+#endif  // TEST
+
+#ifdef BUTTON_TEST
+  ButtonMonitor_register_callback(&button_monitor, BUTTON_BUILTIN,
+                                  &button_test_button_callback,
+                                  (void *)BUTTON_BUILTIN);
+  ButtonMonitor_register_callback(&button_monitor, BUTTON_RTD,
+                                  &button_test_button_callback,
+                                  (void *)BUTTON_RTD);
+  ButtonMonitor_register_callback(&button_monitor, GEAR_HIGH,
+                                  &button_test_button_callback,
+                                  (void *)GEAR_HIGH);
+  ButtonMonitor_register_callback(&button_monitor, GEAR_REVERSE,
+                                  &button_test_button_callback,
+                                  (void *)GEAR_REVERSE);
+  ButtonMonitor_register_callback(&button_monitor, MICRO_APPS,
+                                  &button_test_button_callback,
+                                  (void *)MICRO_APPS);
+  ButtonMonitor_register_callback(&button_monitor, MICRO_BSE,
+                                  &button_test_button_callback,
+                                  (void *)MICRO_BSE);
+
+#endif  // BUTTON_TEST
 
   ButtonMonitor_start(&button_monitor);
 }
@@ -229,6 +247,8 @@ static void led_module_init() {
                         LED_RTD_Pin);
   LedController_add_led(&led_controller, &led_cb[LED_GEAR], LED_GEAR_GPIO_Port,
                         LED_GEAR_Pin);
+  LedController_add_led(&led_controller, &led_cb[SIREN_RTD],
+                        SIREN_RTD_GPIO_Port, SIREN_RTD_Pin);
 
   LedController_start(&led_controller);
 }

@@ -15,7 +15,7 @@
 // project include
 #include "front_box_can.h"
 #include "project_def.h"
-#include "sensor_reader.h"
+#include "sensors.h"
 #include "user_main.h"
 
 /* Exported variable ---------------------------------------------------------*/
@@ -146,9 +146,9 @@ void StatusController_task_code(void* const _self) {
     // pedal plausibility
     GPIO_PinState bse_micro;
     ButtonMonitor_read_state(&button_monitor, MICRO_BSE, &bse_micro);
-    xSemaphoreTake(pedal_data_mutex, portMAX_DELAY);
-    float apps = pedal_data.apps;
-    xSemaphoreGive(pedal_data_mutex);
+    xSemaphoreTake(pedal.mutex, portMAX_DELAY);
+    float apps = pedal.apps1;
+    xSemaphoreGive(pedal.mutex);
     if (self->pedal_plausibility_) {
       if (bse_micro == GPIO_PIN_SET &&
           apps > PEDAL_PLAUSIBILITY_CHECK_APPS_THRESHOLD) {

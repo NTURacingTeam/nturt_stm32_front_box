@@ -9,6 +9,13 @@
 #define __dma_buffer __attribute__((section(".dma_buffer")))
 
 /* project config ------------------------------------------------------------*/
+// #define LED_TEST
+// #define BUTTON_TEST
+
+#if defined(LED_TEST) || defined(BUTTON_TEST)
+#define TEST
+#endif
+
 // freertos stack size
 #define FREERTOS_STATS_TASK_STACK_SIZE 256
 
@@ -52,7 +59,7 @@
 #define BUTTON_BUILTIN 0
 
 // user button
-#define BUTTON_USER_BASE (NUM_BUTTON_BUILTIN + NUM_BUTTON_BUILTIN)
+#define BUTTON_USER_BASE (BUTTON_BUILTIN + NUM_BUTTON_BUILTIN)
 #define BUTTON_USER(X) (BUTTON_USER_BASE + X)
 
 #define BUTTON_RTD BUTTON_USER(0)

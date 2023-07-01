@@ -15,7 +15,7 @@
 // project include
 #include "front_box_can.h"
 #include "project_def.h"
-#include "sensor_reader.h"
+#include "sensors.h"
 #include "status_controller.h"
 #include "user_main.h"
 
@@ -125,9 +125,9 @@ void TorqueController_task_code(void* const _self) {
       }
 
       // calculate torque command
-      xSemaphoreTake(pedal_data_mutex, portMAX_DELAY);
-      float torque_command = pedal_data.apps * self->maximum_torque_;
-      xSemaphoreGive(pedal_data_mutex);
+      xSemaphoreTake(pedal.mutex, portMAX_DELAY);
+      float torque_command = pedal.apps1 * self->maximum_torque_;
+      xSemaphoreGive(pedal.mutex);
       xSemaphoreTake(can_vcu_hp_rx_mutex, portMAX_DELAY);
       float motor_speed_ =
           (float)can_vcu_hp_rx.INV_Fast_Info.INV_Fast_Motor_Speed;

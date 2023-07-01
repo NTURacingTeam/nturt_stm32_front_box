@@ -10,6 +10,9 @@
 // glibc include
 #include <stdbool.h>
 
+// stm32 include
+#include "main.h"
+
 // freertos include
 #include "FreeRTOS.h"
 #include "task.h"
@@ -23,7 +26,7 @@
 /* macro ---------------------------------------------------------------------*/
 // parameter
 #define TORQUE_CONTROLLER_TASK_PRIORITY TaskPriorityAboveNormal
-#define TORQUE_CONTROLLER_TASK_STACK_SIZE 256
+#define TORQUE_CONTROLLER_TASK_STACK_SIZE (2 * configMINIMAL_STACK_SIZE)
 #define TORQUE_CONTROLLER_TASK_PERIOD 10
 
 /* Exported variable ---------------------------------------------------------*/

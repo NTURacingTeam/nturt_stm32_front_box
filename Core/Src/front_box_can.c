@@ -24,6 +24,7 @@
 
 // project include
 #include "project_def.h"
+#include "sensors.h"
 #include "user_main.h"
 
 /* Private macro -------------------------------------------------------------*/
@@ -278,6 +279,12 @@ int frame_id_to_index(uint32_t id) {
 // coderdbc callback function for getting current time in ms
 uint32_t __get__tick__() { return get_10us() / 100; }
 
+// coderdbc callback function for sending can message
+inline int __send_can_message__(uint32_t msgid, uint8_t ide, uint8_t* d,
+                                uint8_t len) {
+  return FrontBoxCan_transmit(&front_box_can, ide, msgid, len, d);
+}
+
 // coderdbc callback function called when receiving a new frame
 void _FMon_MONO_nturt_can_config(FrameMonitor_t* mon, uint32_t msgid) {
   if (mon->cycle_error) {
@@ -323,8 +330,62 @@ void _TOut_MONO_nturt_can_config(FrameMonitor_t* mon, uint32_t msgid,
   }
 }
 
-// coderdbc callback function for sending can message
-inline int __send_can_message__(uint32_t msgid, uint8_t ide, uint8_t* d,
-                                uint8_t len) {
-  return FrontBoxCan_transmit(&front_box_can, ide, msgid, len, d);
+/* coderdbc callback function called befor transmission ----------------------*/
+void FTrn_VCU_Status_nturt_can_config(VCU_Status_t* m) {
+  uint32_t status, error_code;
+  StatusController_get_status(&status_controller, &status);
+  ErrorHandler_get_error(&error_handler, &error_code);
+
+  xSemaphoreTake(can_vcu_tx_mutex, portMAX_DELAY);
+  m->VCU_Status = status;
+  m->VCU_Error_Code = error_code;
+  xSemaphoreGive(can_vcu_tx_mutex);
+}
+
+void FTrn_FRONT_SENSOR_1_nturt_can_config(FRONT_SENSOR_1_t* m) {
+  xSemaphoreTake(pedal.mutex, portMAX_DELAY);
+  xSemaphoreTake(can_front_sensor_tx_mutex, portMAX_DELAY);
+  m->FRONT_SENSOR_Accelerator_1_phys = pedal.apps1;
+  m->FRONT_SENSOR_Accelerator_2_phys = pedal.apps2;
+  m->FRONT_SENSOR_Brake_phys = pedal.bse;
+  m->FRONT_SENSOR_Accelerator_Micro = pedal.micro_apps;
+  m->FRONT_SENSOR_Brake_Micro = pedal.micro_bse;
+  xSemaphoreGive(pedal.mutex);
+  xSemaphoreGive(can_front_sensor_tx_mutex);
+}
+
+void FTrn_FRONT_SENSOR_2_nturt_can_config(FRONT_SENSOR_2_t* m) {
+  xSemaphoreTake(travel_strain_oil_sensor.mutex, portMAX_DELAY);
+  xSemaphoreTake(can_front_sensor_tx_mutex, portMAX_DELAY);
+  m->FRONT_SENSOR_Front_Left_Suspension_phys = travel_strain_oil_sensor.left;
+  m->FRONT_SENSOR_Front_Right_Suspension_phys = travel_strain_oil_sensor.right;
+  m->FRONT_SENSOR_Front_Brake_Pressure_phys =
+      travel_strain_oil_sensor.oil_pressure;
+  m->FRONT_SENSOR_Rear_Brake_Pressure_phys =
+      travel_strain_oil_sensor.oil_pressure;
+  xSemaphoreGive(travel_strain_oil_sensor.mutex);
+  xSemaphoreGive(can_front_sensor_tx_mutex);
+}
+
+void FTrn_FRONT_SENSOR_3_nturt_can_config(FRONT_SENSOR_3_t* m) {
+  xSemaphoreTake(tire_temp_sensor.mutex, portMAX_DELAY);
+  xSemaphoreTake(can_front_sensor_tx_mutex, portMAX_DELAY);
+  m->FRONT_SENSOR_Front_Left_Tire_Temperature_1_phys =
+      (tire_temp_sensor.left[0] + tire_temp_sensor.left[1]) / 2;
+  m->FRONT_SENSOR_Front_Left_Tire_Temperature_2_phys =
+      (tire_temp_sensor.left[2] + tire_temp_sensor.left[3]) / 2;
+  m->FRONT_SENSOR_Front_Left_Tire_Temperature_3_phys =
+      (tire_temp_sensor.left[4] + tire_temp_sensor.left[5]) / 2;
+  m->FRONT_SENSOR_Front_Left_Tire_Temperature_4_phys =
+      (tire_temp_sensor.left[6] + tire_temp_sensor.left[7]) / 2;
+  m->FRONT_SENSOR_Front_Right_Tire_Temperature_1_phys =
+      (tire_temp_sensor.right[0] + tire_temp_sensor.right[1]) / 2;
+  m->FRONT_SENSOR_Front_Right_Tire_Temperature_2_phys =
+      (tire_temp_sensor.right[2] + tire_temp_sensor.right[3]) / 2;
+  m->FRONT_SENSOR_Front_Right_Tire_Temperature_3_phys =
+      (tire_temp_sensor.right[4] + tire_temp_sensor.right[5]) / 2;
+  m->FRONT_SENSOR_Front_Right_Tire_Temperature_4_phys =
+      (tire_temp_sensor.right[6] + tire_temp_sensor.right[7]) / 2;
+  xSemaphoreGive(tire_temp_sensor.mutex);
+  xSemaphoreGive(can_front_sensor_tx_mutex);
 }

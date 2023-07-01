@@ -21,7 +21,7 @@
 #include "dashboard_controller.h"
 #include "front_box_can.h"
 #include "project_def.h"
-#include "sensor_reader.h"
+#include "sensors.h"
 #include "status_controller.h"
 #include "torque_controller.h"
 
@@ -34,7 +34,6 @@ extern LedController led_controller;
 // project
 extern DashboardController dashboard_controller;
 extern FrontBoxCan front_box_can;
-extern SensorReader sensor_reader;
 extern StatusController status_controller;
 extern TorqueController torque_controller;
 
