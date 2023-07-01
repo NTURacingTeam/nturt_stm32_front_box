@@ -1,6 +1,6 @@
 
 #include <stdint.h>
-#include "transfer_functions.h"
+// #include "transfer_functions.h"
 
 #define START_TO_OUTPUT_MARGIN 0.007
 #define OUT_OF_BOUNDS_MARGIN 0.05 //TODO: where do we put these fuzzy bound constants

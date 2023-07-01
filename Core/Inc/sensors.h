@@ -14,11 +14,6 @@
 #define TIRE_TEMP_PERIOD 250 //in ms
 #define STEER_ANGLE_PERIOD 5 //in ms
 
-//regular timer info
-//TODO: move this into ioc and somehow sync this whth the actual timer
-#define WHEEL_SPEED_TIMER_PERIOD 1.0 //in ms
-#define WHEEL_SPEED_TIMER_COUNT_PERIOD 0.001 //in ms
-
 /**
  * @brief structure to hold the data that is outputed by this function
  * 
@@ -81,5 +76,6 @@ extern TimerHandle_t sensor_timer_handle;
 /*htim17 ISR*/
 //external linkage because we need to call this in HAL_TIMPeriodElapsedCallback in main.c
 void __delay3usdone(TIM_HandleTypeDef *htim);
+void __hall_timer_elapsed(TIM_HandleTypeDef *htim);
 
 #endif //_SENSORS_H

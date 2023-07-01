@@ -4,12 +4,6 @@
 #include <stdint.h>
 #include "sensors.h"
 
-static inline float APPS1_transfer_function(const uint16_t reading, const float);
-static inline float APPS2_transfer_function (const uint16_t reading, const float);
-static inline float BSE_transfer_function(const uint16_t reading, float);
-static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
-static inline float oil_transfer_function(const uint16_t reading);
-static inline float travel_transfer_function (const uint16_t reading);
 float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge);
 
 /**

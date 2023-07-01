@@ -83,6 +83,8 @@ IWDG_HandleTypeDef hiwdg1;
 SPI_HandleTypeDef hspi4;
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim7;
+TIM_HandleTypeDef htim17;
 
 UART_HandleTypeDef huart3;
 
@@ -119,6 +121,8 @@ static void MX_ADC1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_ADC3_Init(void);
 static void MX_IWDG1_Init(void);
+static void MX_TIM17_Init(void);
+static void MX_TIM7_Init(void);
 void start_feed_dog_task(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -183,6 +187,8 @@ int main(void)
   MX_TIM2_Init();
   MX_ADC3_Init();
   MX_IWDG1_Init();
+  MX_TIM17_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
   user_init();
   /* USER CODE END 2 */
@@ -863,6 +869,76 @@ static void MX_TIM2_Init(void)
 }
 
 /**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 275-1;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 10000-1;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
+
+}
+
+/**
+  * @brief TIM17 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM17_Init(void)
+{
+
+  /* USER CODE BEGIN TIM17_Init 0 */
+
+  /* USER CODE END TIM17_Init 0 */
+
+  /* USER CODE BEGIN TIM17_Init 1 */
+
+  /* USER CODE END TIM17_Init 1 */
+  htim17.Instance = TIM17;
+  htim17.Init.Prescaler = 0;
+  htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim17.Init.Period = 825-1;
+  htim17.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim17.Init.RepetitionCounter = 0;
+  htim17.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim17) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM17_Init 2 */
+
+  /* USER CODE END TIM17_Init 2 */
+
+}
+
+/**
   * @brief USART3 Initialization Function
   * @param None
   * @retval None
@@ -1167,6 +1243,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
   if(htim->Instance == TIM17) {
     __delay3usdone(htim);
+  }
+  if(htim->Instance == TIM7) {
+    __hall_timer_elapsed(htim);
   }
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM6) {

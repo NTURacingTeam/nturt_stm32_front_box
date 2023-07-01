@@ -158,10 +158,6 @@ TaskHandle_t sensors_data_task_handle;
 __dtcmram StaticTimer_t sensor_timer_buffer;
 TimerHandle_t sensor_timer_handle;
 
-//TODO:　ＴＨＩＳ　ＩＳ　Ａ　ＰＬＡＣＥＨＯＬＤＥＲ　ＶＡＲＩＡＢＬＥ，　ＲＥＭＥＭＢＥＲ　ＴＯ　ＲＥＭＯＶＥ　ＩＴ　ＡＦＴＥＲ　ＭＸ
-extern TIM_HandleTypeDef htim17;
-extern TIM_HandleTypeDef htim24;
-
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
 static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
@@ -306,7 +302,7 @@ void sensor_handler(void* argument) {
             timer_time_t diff = {0};
             update_time_stamp(&hall_time_L_last, &hall_time_L, &diff);
 
-            xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT);
+            xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT); 
                 wheel_speed_sensor.left = wheel_speed_tranfser_function(diff.elapsed_count, diff.timer_count);
             xSemaphoreGive(wheel_speed_sensor.mutex);
         }
@@ -532,12 +528,12 @@ void __hall_timer_elapsed(TIM_HandleTypeDef *htim) {
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
     if(GPIO_Pin == HALL_L_Pin) {
-        hall_time_L.timer_count = __HAL_TIM_GET_COUNTER(&htim24);
+        hall_time_L.timer_count = __HAL_TIM_GET_COUNTER(&htim7);
         hall_time_L.elapsed_count = hall_timer_elapsed;
         xTaskNotifyFromISR(sensors_data_task_handle, FLAG_HALL_EDGE_LEFT, eSetBits, NULL);
     }   
     if(GPIO_Pin == HALL_R_Pin) {
-        hall_time_R.timer_count = __HAL_TIM_GET_COUNTER(&htim24);
+        hall_time_R.timer_count = __HAL_TIM_GET_COUNTER(&htim7);
         hall_time_R.elapsed_count = hall_timer_elapsed;
         xTaskNotifyFromISR(sensors_data_task_handle, FLAG_HALL_EDGE_RIGHT, eSetBits, NULL);
     }
