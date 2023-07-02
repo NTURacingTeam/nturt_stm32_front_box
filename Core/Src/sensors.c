@@ -147,6 +147,10 @@ wheel_speed_data_t wheel_speed_sensor = {
     //mutex is initialized in user_main.c along with everything freertos 
 };
 
+//dma buffer for SPI. The buffer is declared here so that SPI transmission is done in ISR
+static __dma_buffer uint8_t spi_rx_dma_buffer[4] = {0};
+static __dma_buffer uint8_t spi_tx_dma_buffer[4] = {0};
+
 /*task controls*/
 // __dtcmram 
 uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
@@ -161,6 +165,7 @@ TimerHandle_t sensor_timer_handle;
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
 static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
+static void spi4_state_machine_update(void);
 
 void sensor_timer_callback(TimerHandle_t timer) {
     xTaskNotify(sensors_data_task_handle, FLAG_READ_SUS_PEDAL, eSetBits);
@@ -191,8 +196,6 @@ void sensor_handler(void* argument) {
     static __dma_buffer adc_dma_buffer_t adc_dma_buffer = {0};
     static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_R = {0};
     static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_L = {0};
-    static __dma_buffer uint8_t spi_rx_dma_buffer[4] = {0};
-    static __dma_buffer uint8_t spi_tx_dma_buffer[4] = {0};
 
     timer_time_t hall_time_L_last = {0};
     timer_time_t hall_time_R_last = {0};
@@ -364,40 +367,24 @@ void sensor_handler(void* argument) {
             //TODO: do we use leave the control back to the top between waits
             //see https://www.cuidevices.com/product/resource/amt22.pdf
             //pull CS low
-            HAL_GPIO_WritePin(ENCODER_SS_GPIO_Port, ENCODER_SS_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(Encoder_SS_GPIO_Port, Encoder_SS_Pin, GPIO_PIN_RESET);
 
-            //wait for T_CLK - 2.5us. we just wait 3ms for simplcity
-            //TODO: do we use other configuration such as one pulse mode to generate delay?
-            //TODO: remember to seup tim17 in MX
-            HAL_TIM_Base_Start_IT(&htim17);
-            wait_for_notif_flags(FLAG_3US_FINISH, pdMS_TO_TICKS(1), &pending_notifications);
-
-            //high byte transaction
-            HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_dma_buffer, spi_rx_dma_buffer, 1);
+            //start TIM17
+            //rest of byte transmission is designed in the TIM17 ISR
+            spi4_state_machine_update();
             wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications);
 
-            //wait for T_B - 2.5us. we just wait 3ms for simplcity
-            HAL_TIM_Base_Start_IT(&htim17);
-            wait_for_notif_flags(FLAG_3US_FINISH, pdMS_TO_TICKS(1), &pending_notifications);
-            
-            //low byte transaction
-            HAL_SPI_TransmitReceive_IT(&hspi4, &spi_tx_dma_buffer[1], &spi_rx_dma_buffer[1], 1);
-            wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications);
+            //CRC?
 
-            //wait for T_R - 3us
-            HAL_TIM_Base_Start_IT(&htim17);
-
-                //CRC?
-
-                //calculate position and put the stuff in to variables
-                const uint16_t position = ((uint16_t)spi_rx_dma_buffer[0] << 8-2) + ((uint16_t)spi_tx_dma_buffer[1] >> 2);
-                xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
-                    steer_angle_sensor.steering_angle = steer_angle_transfer_function(position);
-                xSemaphoreGive(steer_angle_sensor.mutex);
+            //calculate position and put the stuff in to variables
+            const uint16_t position = ((uint16_t)spi_rx_dma_buffer[0] << 8-2) + ((uint16_t)spi_tx_dma_buffer[1] >> 2);
+            xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
+                steer_angle_sensor.steering_angle = steer_angle_transfer_function(position);
+            xSemaphoreGive(steer_angle_sensor.mutex);
 
             //pull CS high after wait for T_R
             wait_for_notif_flags(FLAG_3US_FINISH, pdMS_TO_TICKS(1), &pending_notifications);
-            HAL_GPIO_WritePin(ENCODER_SS_GPIO_Port, ENCODER_SS_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(Encoder_SS_GPIO_Port, Encoder_SS_Pin, GPIO_PIN_SET);
         }
     }
 }
@@ -511,15 +498,56 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
     if(hspi == &hspi4) {
-        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_SPI4_FINISH, eSetBits, NULL);
+        spi4_state_machine_update();
     }
 }
 
-void __delay3usdone(TIM_HandleTypeDef *htim) {
+void ___delay_3us_done(TIM_HandleTypeDef* htim) {
+    HAL_TIM_Base_Stop_IT(htim);
+    spi4_state_machine_update();
+}
+
+void spi4_state_machine_update() {
     //TODO: refactor this thing because this just feels bad. How to link ISR properly
     //note this is the htim17 ISR. htim17 is used for 3us delay here for AMT22
-    xTaskNotifyFromISR(sensors_data_task_handle, FLAG_3US_FINISH, eSetBits, NULL);
-    HAL_TIM_Base_Stop_IT(htim);
+    static enum {
+        SPI_IDLE,
+        SPI_FIRST_BYTE_START,
+        SPI_FIRST_BYTE_END,
+        SPI_SECOND_BYTE_START,
+        SPI_SECOND_BYTE_END,
+        SPI_EOT
+    } state = SPI_FIRST_BYTE_START;
+
+    switch(state) {
+        case SPI_IDLE :
+            HAL_GPIO_WritePin(Encoder_SS_GPIO_Port, Encoder_SS_Pin, GPIO_PIN_RESET);
+            HAL_TIM_Base_Start_IT(&htim17);
+            state = SPI_FIRST_BYTE_START;
+            break;
+        case SPI_FIRST_BYTE_START :
+            HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_dma_buffer, spi_rx_dma_buffer, 1);
+            state = SPI_FIRST_BYTE_END;
+            break;
+        case SPI_FIRST_BYTE_END :
+            HAL_TIM_Base_Start_IT(&htim17);
+            state = SPI_SECOND_BYTE_START;
+            break;
+        case SPI_SECOND_BYTE_START :
+            //low byte transaction
+            HAL_SPI_TransmitReceive_IT(&hspi4, &spi_tx_dma_buffer[1], &spi_rx_dma_buffer[1], 1);
+            state == SPI_SECOND_BYTE_END;
+            break;
+        case SPI_SECOND_BYTE_END :
+            HAL_TIM_Base_Start_IT(&htim17);
+            state == SPI_EOT;
+            break;
+        case SPI_EOT :
+            HAL_GPIO_WritePin(Encoder_SS_GPIO_Port, Encoder_SS_Pin, GPIO_PIN_SET);
+            xTaskNotifyFromISR(sensors_data_task_handle, FLAG_SPI4_FINISH, eSetBits, NULL);
+            state == SPI_IDLE;
+            break;
+    }
 }
 
 void __hall_timer_elapsed(TIM_HandleTypeDef *htim) {

@@ -1242,7 +1242,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
   if(htim->Instance == TIM17) {
-    __delay3usdone(htim);
+    ___delay_3us_done(htim);
   }
   if(htim->Instance == TIM7) {
     __hall_timer_elapsed(htim);
