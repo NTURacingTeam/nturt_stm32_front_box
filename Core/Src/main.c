@@ -798,14 +798,14 @@ static void MX_SPI4_Init(void)
   hspi4.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi4.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi4.Init.NSS = SPI_NSS_SOFT;
-  hspi4.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi4.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
   hspi4.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi4.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi4.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi4.Init.CRCPolynomial = 0x0;
-  hspi4.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  hspi4.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
   hspi4.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-  hspi4.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
+  hspi4.Init.FifoThreshold = SPI_FIFO_THRESHOLD_02DATA;
   hspi4.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
   hspi4.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
   hspi4.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
@@ -1061,7 +1061,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOG_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, ENCODER_SS_Pin|LED_VCU_Pin|LED_GEAR_Pin|LED_BUILTIN_YELLOW_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, Encoder_SS_Pin|LED_VCU_Pin|LED_GEAR_Pin|LED_BUILTIN_YELLOW_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_RTD_GPIO_Port, LED_RTD_Pin, GPIO_PIN_RESET);
@@ -1078,8 +1078,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, LED_WARN_Pin|LED_ERROR_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : ENCODER_SS_Pin LED_VCU_Pin LED_GEAR_Pin LED_BUILTIN_YELLOW_Pin */
-  GPIO_InitStruct.Pin = ENCODER_SS_Pin|LED_VCU_Pin|LED_GEAR_Pin|LED_BUILTIN_YELLOW_Pin;
+  /*Configure GPIO pins : Encoder_SS_Pin LED_VCU_Pin LED_GEAR_Pin LED_BUILTIN_YELLOW_Pin */
+  GPIO_InitStruct.Pin = Encoder_SS_Pin|LED_VCU_Pin|LED_GEAR_Pin|LED_BUILTIN_YELLOW_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

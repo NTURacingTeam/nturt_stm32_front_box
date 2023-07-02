@@ -63,6 +63,7 @@ void TIM7_IRQHandler(void);
 void DMA2_Stream0_IRQHandler(void);
 void DMA2_Stream1_IRQHandler(void);
 void DMA2_Stream3_IRQHandler(void);
+void SPI4_IRQHandler(void);
 void TIM17_IRQHandler(void);
 void ADC3_IRQHandler(void);
 void I2C5_EV_IRQHandler(void);

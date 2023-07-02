@@ -65,6 +65,7 @@ extern DMA_HandleTypeDef hdma_i2c5_rx;
 extern DMA_HandleTypeDef hdma_i2c5_tx;
 extern I2C_HandleTypeDef hi2c1;
 extern I2C_HandleTypeDef hi2c5;
+extern SPI_HandleTypeDef hspi4;
 extern TIM_HandleTypeDef htim7;
 extern TIM_HandleTypeDef htim17;
 extern TIM_HandleTypeDef htim6;
@@ -323,6 +324,20 @@ void DMA2_Stream3_IRQHandler(void)
   /* USER CODE BEGIN DMA2_Stream3_IRQn 1 */
 
   /* USER CODE END DMA2_Stream3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles SPI4 global interrupt.
+  */
+void SPI4_IRQHandler(void)
+{
+  /* USER CODE BEGIN SPI4_IRQn 0 */
+
+  /* USER CODE END SPI4_IRQn 0 */
+  HAL_SPI_IRQHandler(&hspi4);
+  /* USER CODE BEGIN SPI4_IRQn 1 */
+
+  /* USER CODE END SPI4_IRQn 1 */
 }
 
 /**

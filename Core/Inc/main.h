@@ -78,8 +78,8 @@ void Error_Handler(void);
 #define WHEEL_SPEED_TIMER_COUNT_PERIOD 0.001
 #define Encoder_SCK_Pin GPIO_PIN_2
 #define Encoder_SCK_GPIO_Port GPIOE
-#define ENCODER_SS_Pin GPIO_PIN_4
-#define ENCODER_SS_GPIO_Port GPIOE
+#define Encoder_SS_Pin GPIO_PIN_4
+#define Encoder_SS_GPIO_Port GPIOE
 #define Encoder_MISO_Pin GPIO_PIN_5
 #define Encoder_MISO_GPIO_Port GPIOE
 #define Encoder_MOSI_Pin GPIO_PIN_6
