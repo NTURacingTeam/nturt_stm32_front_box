@@ -43,6 +43,7 @@
 // project include
 #include "project_def.h"
 #include "transfer_functions.h"
+#include "d6t_spi.h"
 
 //own include
 #include "sensors.h"
@@ -166,7 +167,6 @@ TimerHandle_t sensor_timer_handle;
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
 static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
-static void spi4_state_machine_update(void);
 static void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, timer_time_t* diff);
 
 void sensor_timer_callback(TimerHandle_t timer) {
@@ -178,7 +178,7 @@ void sensor_timer_callback(TimerHandle_t timer) {
     expire_count++;
     vTimerSetTimerID(timer, (void*)expire_count);
 
-    //TODO: unfreeze this to let the D6T start running after setting everything up in MX
+    //TODO: unfreeze this to let the AMT start running after setting everything up in MX
     // if((uint32_t)pvTimerGetTimerID(timer) >= STEER_ANGLE_PERIOD/SENSOR_TIMER_PERIOD) {
     //     xTaskNotify(sensors_data_task_handle, FLAG_READ_STEER, eSetBits);
     // }
@@ -387,7 +387,7 @@ void sensor_handler(void* argument) {
 
             //start the spi4 state machine
             //the rest of the spi delay is done by the state machine
-            spi4_state_machine_update();
+            spi4_state_machine_start(xTaskGetCurrentTaskHandle(), FLAG_SPI4_FINISH, spi_tx_dma_buffer, spi_tx_dma_buffer);
             wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications);
 
             //CRC?
@@ -505,60 +505,6 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
         xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC1_FINISH, eSetBits, NULL);
     } else if(hadc == &hadc3) {
         xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC3_FINISH, eSetBits, NULL);
-    }
-}
-
-void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
-    if(hspi == &hspi4) {
-        spi4_state_machine_update();
-    }
-}
-
-void ___delay_3us_done(TIM_HandleTypeDef* htim) {
-    HAL_TIM_Base_Stop_IT(htim);
-    spi4_state_machine_update();
-}
-
-void spi4_state_machine_update() {
-    //TODO: refactor this thing because this just feels bad. How to link ISR properly
-    //note this is the htim17 ISR. htim17 is used for 3us delay here for AMT22
-    static enum {
-        SPI_IDLE,
-        SPI_FIRST_BYTE_START,
-        SPI_FIRST_BYTE_END,
-        SPI_SECOND_BYTE_START,
-        SPI_SECOND_BYTE_END,
-        SPI_EOT
-    } state = SPI_FIRST_BYTE_START;
-
-    switch(state) {
-        case SPI_IDLE :
-            HAL_GPIO_WritePin(Encoder_SS_GPIO_Port, Encoder_SS_Pin, GPIO_PIN_RESET);
-            HAL_TIM_Base_Start_IT(&htim17);
-            state = SPI_FIRST_BYTE_START;
-            break;
-        case SPI_FIRST_BYTE_START :
-            HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_dma_buffer, spi_rx_dma_buffer, 1);
-            state = SPI_FIRST_BYTE_END;
-            break;
-        case SPI_FIRST_BYTE_END :
-            HAL_TIM_Base_Start_IT(&htim17);
-            state = SPI_SECOND_BYTE_START;
-            break;
-        case SPI_SECOND_BYTE_START :
-            //low byte transaction
-            HAL_SPI_TransmitReceive_IT(&hspi4, &spi_tx_dma_buffer[1], &spi_rx_dma_buffer[1], 1);
-            state = SPI_SECOND_BYTE_END;
-            break;
-        case SPI_SECOND_BYTE_END :
-            HAL_TIM_Base_Start_IT(&htim17);
-            state = SPI_EOT;
-            break;
-        case SPI_EOT :
-            HAL_GPIO_WritePin(Encoder_SS_GPIO_Port, Encoder_SS_Pin, GPIO_PIN_SET);
-            xTaskNotifyFromISR(sensors_data_task_handle, FLAG_SPI4_FINISH, eSetBits, NULL);
-            state = SPI_IDLE;
-            break;
     }
 }
 

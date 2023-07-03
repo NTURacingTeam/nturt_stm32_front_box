@@ -73,9 +73,8 @@ void sensor_timer_callback(TimerHandle_t);
 extern StaticTimer_t sensor_timer_buffer;
 extern TimerHandle_t sensor_timer_handle;
 
-/*htim17 ISR*/
+/*htim7 ISR*/
 //external linkage because we need to call this in HAL_TIMPeriodElapsedCallback in main.c
-void __delay_3us_done(TIM_HandleTypeDef *htim);
 void __hall_timer_elapsed(TIM_HandleTypeDef *htim);
 
 #endif //_SENSORS_H
