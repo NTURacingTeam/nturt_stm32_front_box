@@ -137,7 +137,7 @@ tire_temp_data_t tire_temp_sensor = {
 };
 
 steer_angle_data_t steer_angle_sensor = {
-    .steering_angle = 0
+    .steering_angle = 0.0
     //mutex is initialized in user_main.c along with everything freertos 
 };
 
@@ -166,6 +166,7 @@ TimerHandle_t sensor_timer_handle;
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
 static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
 static void spi4_state_machine_update(void);
+static void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, timer_time_t* diff);
 
 void sensor_timer_callback(TimerHandle_t timer) {
     xTaskNotify(sensors_data_task_handle, FLAG_READ_SUS_PEDAL, eSetBits);
@@ -230,6 +231,9 @@ void sensor_handler(void* argument) {
     //start the initial read, and start the timer that should later notifies this task to do stuff again
     xTaskNotify(xTaskGetCurrentTaskHandle(), FLAG_READ_SUS_PEDAL | FLAG_READ_TIRE_TEMP, eSetBits);
     xTimerStart(sensor_timer_handle, portMAX_DELAY); //TODO: case where timer did not start
+
+    //start the hall timer
+    HAL_TIM_Base_Start(&htim7);
 
     while(1) {
         if(!pending_notifications) {
@@ -366,25 +370,19 @@ void sensor_handler(void* argument) {
             //TODO: set the SPI and DMA up
             //TODO: do we use leave the control back to the top between waits
             //see https://www.cuidevices.com/product/resource/amt22.pdf
-            //pull CS low
-            HAL_GPIO_WritePin(Encoder_SS_GPIO_Port, Encoder_SS_Pin, GPIO_PIN_RESET);
 
-            //start TIM17
-            //rest of byte transmission is designed in the TIM17 ISR
+            //start the spi4 state machine
+            //the rest of the spi delay is done by the state machine
             spi4_state_machine_update();
             wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications);
 
             //CRC?
 
             //calculate position and put the stuff in to variables
-            const uint16_t position = ((uint16_t)spi_rx_dma_buffer[0] << 8-2) + ((uint16_t)spi_tx_dma_buffer[1] >> 2);
+            const uint16_t position = ((uint16_t)spi_rx_dma_buffer[0] << (8-2)) + ((uint16_t)spi_tx_dma_buffer[1] >> 2);
             xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
                 steer_angle_sensor.steering_angle = steer_angle_transfer_function(position);
             xSemaphoreGive(steer_angle_sensor.mutex);
-
-            //pull CS high after wait for T_R
-            wait_for_notif_flags(FLAG_3US_FINISH, pdMS_TO_TICKS(1), &pending_notifications);
-            HAL_GPIO_WritePin(Encoder_SS_GPIO_Port, Encoder_SS_Pin, GPIO_PIN_SET);
         }
     }
 }
@@ -464,7 +462,7 @@ static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_
  * @param now the new time stamp at which this time is called
  * @param diff calculates the time difference between last and now
  */
-void update_time_stamp(timer_time_t* last, const timer_time_t* now, timer_time_t* diff) {
+void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, timer_time_t* diff) {
     diff->elapsed_count = now->elapsed_count - last->elapsed_count;
     diff->timer_count = now->timer_count - last->timer_count;
 
@@ -536,21 +534,22 @@ void spi4_state_machine_update() {
         case SPI_SECOND_BYTE_START :
             //low byte transaction
             HAL_SPI_TransmitReceive_IT(&hspi4, &spi_tx_dma_buffer[1], &spi_rx_dma_buffer[1], 1);
-            state == SPI_SECOND_BYTE_END;
+            state = SPI_SECOND_BYTE_END;
             break;
         case SPI_SECOND_BYTE_END :
             HAL_TIM_Base_Start_IT(&htim17);
-            state == SPI_EOT;
+            state = SPI_EOT;
             break;
         case SPI_EOT :
             HAL_GPIO_WritePin(Encoder_SS_GPIO_Port, Encoder_SS_Pin, GPIO_PIN_SET);
             xTaskNotifyFromISR(sensors_data_task_handle, FLAG_SPI4_FINISH, eSetBits, NULL);
-            state == SPI_IDLE;
+            state = SPI_IDLE;
             break;
     }
 }
 
 void __hall_timer_elapsed(TIM_HandleTypeDef *htim) {
+    (void)htim;
     hall_timer_elapsed++;
 }
 
