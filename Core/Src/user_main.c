@@ -110,11 +110,6 @@ void user_init() {
     sensor_timer_callback,
     &sensor_timer_buffer
   );
-  pedal.mutex = xSemaphoreCreateMutex();
-  travel_strain_oil_sensor.mutex = xSemaphoreCreateMutex();
-  tire_temp_sensor.mutex = xSemaphoreCreateMutex();
-  steer_angle_sensor.mutex = xSemaphoreCreateMutex();
-  wheel_speed_sensor.mutex = xSemaphoreCreateMutex();
 
   // register error callback function
   ErrorHandler_add_error_callback(&error_handler, &auxiliary_error_callback_cb,

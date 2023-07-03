@@ -205,6 +205,11 @@ void sensor_handler(void* argument) {
     //create all the necessary mutexes
     hall_time_L.mutex = xSemaphoreCreateMutex();
     hall_time_R.mutex = xSemaphoreCreateMutex();
+    pedal.mutex = xSemaphoreCreateMutex();
+    travel_strain_oil_sensor.mutex = xSemaphoreCreateMutex();
+    tire_temp_sensor.mutex = xSemaphoreCreateMutex();
+    steer_angle_sensor.mutex = xSemaphoreCreateMutex();
+    wheel_speed_sensor.mutex = xSemaphoreCreateMutex();
 
     //TODO: handle every return status of FreeRTOS and HAL API
     (void)argument;
