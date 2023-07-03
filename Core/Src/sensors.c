@@ -103,6 +103,7 @@ typedef struct {
 typedef struct {
     uint32_t elapsed_count;
     uint32_t timer_count;
+    SemaphoreHandle_t mutex;
 } timer_time_t;
 
 static volatile timer_time_t hall_time_L = {0};
@@ -200,6 +201,10 @@ void sensor_handler(void* argument) {
 
     timer_time_t hall_time_L_last = {0};
     timer_time_t hall_time_R_last = {0};
+
+    //create all the necessary mutexes
+    hall_time_L.mutex = xSemaphoreCreateMutex();
+    hall_time_R.mutex = xSemaphoreCreateMutex();
 
     //TODO: handle every return status of FreeRTOS and HAL API
     (void)argument;
@@ -304,24 +309,28 @@ void sensor_handler(void* argument) {
         
         }
         if(pending_notifications & FLAG_HALL_EDGE_LEFT) {
-            pending_notifications &= ~FLAG_HALL_EDGE_LEFT; //clear flags
+            xSemaphoreTake(hall_time_L.mutex, MUTEX_TIMEOUT);
+                pending_notifications &= ~FLAG_HALL_EDGE_LEFT; //clear flags
 
-            timer_time_t diff = {0};
-            update_time_stamp(&hall_time_L_last, &hall_time_L, &diff);
+                timer_time_t diff = {0};
+                update_time_stamp(&hall_time_L_last, &hall_time_L, &diff);
 
-            xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT); 
-                wheel_speed_sensor.left = wheel_speed_tranfser_function(diff.elapsed_count, diff.timer_count);
-            xSemaphoreGive(wheel_speed_sensor.mutex);
+                xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT); 
+                    wheel_speed_sensor.left = wheel_speed_tranfser_function(diff.elapsed_count, diff.timer_count);
+                xSemaphoreGive(wheel_speed_sensor.mutex);
+            xSemaphoreGive(hall_time_L.mutex);
         }
         if(pending_notifications & FLAG_HALL_EDGE_RIGHT) {
-            pending_notifications &= ~FLAG_HALL_EDGE_RIGHT; //clear flags
+            xSemaphoreTake(hall_time_R.mutex, MUTEX_TIMEOUT);
+                pending_notifications &= ~FLAG_HALL_EDGE_RIGHT; //clear flags
 
-            timer_time_t diff = {0};
-            update_time_stamp(&hall_time_R_last, &hall_time_R, &diff);
+                timer_time_t diff = {0};
+                update_time_stamp(&hall_time_R_last, &hall_time_R, &diff);
 
-            xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT);
-                wheel_speed_sensor.right = wheel_speed_tranfser_function(diff.elapsed_count, diff.timer_count);
-            xSemaphoreGive(wheel_speed_sensor.mutex);
+                xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT);
+                    wheel_speed_sensor.right = wheel_speed_tranfser_function(diff.elapsed_count, diff.timer_count);
+                xSemaphoreGive(wheel_speed_sensor.mutex);
+            xSemaphoreGive(hall_time_R.mutex);
         }
         if(pending_notifications & FLAG_READ_TIRE_TEMP) {
             pending_notifications &= ~FLAG_READ_TIRE_TEMP;
@@ -553,15 +562,21 @@ void __hall_timer_elapsed(TIM_HandleTypeDef *htim) {
     hall_timer_elapsed++;
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {    
     if(GPIO_Pin == HALL_L_Pin) {
-        hall_time_L.timer_count = __HAL_TIM_GET_COUNTER(&htim7);
-        hall_time_L.elapsed_count = hall_timer_elapsed;
-        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_HALL_EDGE_LEFT, eSetBits, NULL);
+        if(xSemaphoreTakeFromISR(hall_time_L.mutex, NULL) == pdTRUE) {
+            hall_time_L.timer_count = __HAL_TIM_GET_COUNTER(&htim7);
+            hall_time_L.elapsed_count = hall_timer_elapsed;
+            xTaskNotifyFromISR(sensors_data_task_handle, FLAG_HALL_EDGE_LEFT, eSetBits, NULL);
+            xSemaphoreGiveFromISR(hall_time_L.mutex, NULL);
+        }
     }   
     if(GPIO_Pin == HALL_R_Pin) {
-        hall_time_R.timer_count = __HAL_TIM_GET_COUNTER(&htim7);
-        hall_time_R.elapsed_count = hall_timer_elapsed;
-        xTaskNotifyFromISR(sensors_data_task_handle, FLAG_HALL_EDGE_RIGHT, eSetBits, NULL);
+        if(xSemaphoreTakeFromISR(hall_time_R.mutex, NULL) == pdTRUE) {
+            hall_time_R.timer_count = __HAL_TIM_GET_COUNTER(&htim7);
+            hall_time_R.elapsed_count = hall_timer_elapsed;
+            xTaskNotifyFromISR(sensors_data_task_handle, FLAG_HALL_EDGE_RIGHT, eSetBits, NULL);
+            xSemaphoreGiveFromISR(hall_time_R.mutex, NULL);
+        }
     }
 }
