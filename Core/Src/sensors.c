@@ -43,7 +43,6 @@
 // project include
 #include "project_def.h"
 #include "transfer_functions.h"
-#include "d6t_spi.h"
 
 //own include
 #include "sensors.h"
@@ -149,10 +148,6 @@ wheel_speed_data_t wheel_speed_sensor = {
     //mutex is initialized in user_main.c along with everything freertos 
 };
 
-//dma buffer for SPI. The buffer is declared here so that SPI transmission is done in ISR
-static __dma_buffer uint8_t spi_rx_dma_buffer[4] = {0};
-static __dma_buffer uint8_t spi_tx_dma_buffer[4] = {0};
-
 /*task controls*/
 // __dtcmram 
 uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
@@ -178,10 +173,9 @@ void sensor_timer_callback(TimerHandle_t timer) {
     expire_count++;
     vTimerSetTimerID(timer, (void*)expire_count);
 
-    //TODO: unfreeze this to let the AMT start running after setting everything up in MX
-    // if((uint32_t)pvTimerGetTimerID(timer) >= STEER_ANGLE_PERIOD/SENSOR_TIMER_PERIOD) {
-    //     xTaskNotify(sensors_data_task_handle, FLAG_READ_STEER, eSetBits);
-    // }
+    if((uint32_t)pvTimerGetTimerID(timer) >= STEER_ANGLE_PERIOD/SENSOR_TIMER_PERIOD) {
+        xTaskNotify(sensors_data_task_handle, FLAG_READ_STEER, eSetBits);
+    }
 
     if((uint32_t)pvTimerGetTimerID(timer) >= TIRE_TEMP_PERIOD/SENSOR_TIMER_PERIOD) {
         xTaskNotify(sensors_data_task_handle, FLAG_READ_TIRE_TEMP, eSetBits);
@@ -198,6 +192,8 @@ void sensor_handler(void* argument) {
     static __dma_buffer adc_dma_buffer_t adc_dma_buffer = {0};
     static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_R = {0};
     static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_L = {0};
+    static __dma_buffer uint8_t spi_rx_buffer[4] = {0};
+    static __dma_buffer uint8_t spi_tx_buffer[4] = {0};
 
     timer_time_t hall_time_L_last = {0};
     timer_time_t hall_time_R_last = {0};
@@ -226,8 +222,8 @@ void sensor_handler(void* argument) {
 
     /*initialize the pedal sensors' compensation*/
     //wait until the pedals are set back to zero
-    while(  HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin) != GPIO_PIN_SET || 
-            HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin) != GPIO_PIN_SET ) {
+    while(  HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin) != GPIO_PIN_RESET ||
+            HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin) != GPIO_PIN_RESET ) {
         vTaskDelay(pdMS_TO_TICKS(3));
     }
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
@@ -381,21 +377,24 @@ void sensor_handler(void* argument) {
         }
         if(pending_notifications & FLAG_READ_STEER) {
             pending_notifications &= ~FLAG_READ_STEER; //clear flags
-            //TODO: set the SPI and DMA up
-            //TODO: do we use leave the control back to the top between waits
+            
             //see https://www.cuidevices.com/product/resource/amt22.pdf
+            //TODO: using hardware NSS right now because SCK jitters when NSS is switched by software for some reason
+            //but hardware NSS does not observe 3us after all bytes transmission
+            spi_tx_buffer[0] = 0;
+            spi_tx_buffer[1] = 0;
 
-            //start the spi4 state machine
-            //the rest of the spi delay is done by the state machine
-            spi4_state_machine_start(xTaskGetCurrentTaskHandle(), FLAG_SPI4_FINISH, spi_tx_dma_buffer, spi_tx_dma_buffer);
+            HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_buffer, spi_rx_buffer, 2);
             wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications);
 
-            //CRC?
+            //TODO: CRC?
 
             //calculate position and put the stuff in to variables
-            const uint16_t position = ((uint16_t)spi_rx_dma_buffer[0] << (8-2)) + ((uint16_t)spi_tx_dma_buffer[1] >> 2);
+            const uint8_t highByte = spi_rx_buffer[0];
+            const uint8_t lowByte = spi_rx_buffer[1];
+            const uint16_t position = ((uint16_t)highByte << 8) + (uint16_t)lowByte;
             xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
-                steer_angle_sensor.steering_angle = steer_angle_transfer_function(position);
+                steer_angle_sensor.steering_angle = steer_angle_transfer_function((position & 0x3FFF) >> 2);
             xSemaphoreGive(steer_angle_sensor.mutex);
         }
     }
@@ -529,5 +528,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
             xTaskNotifyFromISR(sensors_data_task_handle, FLAG_HALL_EDGE_RIGHT, eSetBits, NULL);
             xSemaphoreGiveFromISR(hall_time_R.mutex, NULL);
         }
+    }
+}
+
+
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
+    if(hspi == &hspi4) {
+    	xTaskNotifyFromISR(sensors_data_task_handle, FLAG_SPI4_FINISH, eSetBits, NULL);
     }
 }

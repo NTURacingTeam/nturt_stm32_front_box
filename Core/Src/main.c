@@ -25,7 +25,6 @@
 /* USER CODE BEGIN Includes */
 #include "user_main.h"
 #include "sensors.h"
-#include "d6t_spi.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -796,22 +795,22 @@ static void MX_SPI4_Init(void)
   hspi4.Instance = SPI4;
   hspi4.Init.Mode = SPI_MODE_MASTER;
   hspi4.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi4.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi4.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi4.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi4.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi4.Init.NSS = SPI_NSS_SOFT;
-  hspi4.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
+  hspi4.Init.NSS = SPI_NSS_HARD_OUTPUT;
+  hspi4.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
   hspi4.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi4.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi4.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi4.Init.CRCPolynomial = 0x0;
   hspi4.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
   hspi4.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-  hspi4.Init.FifoThreshold = SPI_FIFO_THRESHOLD_02DATA;
+  hspi4.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
   hspi4.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
   hspi4.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi4.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
-  hspi4.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
+  hspi4.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_06CYCLE;
+  hspi4.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_06CYCLE;
   hspi4.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
   hspi4.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
   hspi4.Init.IOSwap = SPI_IO_SWAP_DISABLE;
@@ -1063,13 +1062,13 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOG_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, Encoder_SS_Pin|LED_VCU_Pin|LED_GEAR_Pin|LED_BUILTIN_YELLOW_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_RTD_GPIO_Port, LED_RTD_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LED_BUILTIN_GREEN_Pin|LED_BUILTIN_RED_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOE, LED_VCU_Pin|LED_GEAR_Pin|LED_BUILTIN_YELLOW_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, USB_FS_PWR_EN_Pin|SIREN_RTD_Pin, GPIO_PIN_RESET);
@@ -1079,13 +1078,6 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, LED_WARN_Pin|LED_ERROR_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pins : Encoder_SS_Pin LED_VCU_Pin LED_GEAR_Pin LED_BUILTIN_YELLOW_Pin */
-  GPIO_InitStruct.Pin = Encoder_SS_Pin|LED_VCU_Pin|LED_GEAR_Pin|LED_BUILTIN_YELLOW_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BUTTON_BUILTIN_Pin */
   GPIO_InitStruct.Pin = BUTTON_BUILTIN_Pin;
@@ -1118,6 +1110,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : LED_VCU_Pin LED_GEAR_Pin LED_BUILTIN_YELLOW_Pin */
+  GPIO_InitStruct.Pin = LED_VCU_Pin|LED_GEAR_Pin|LED_BUILTIN_YELLOW_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : GEAR_HIGH_Pin GEAR_REVERSE_Pin BUTTON_RTD_Pin */
   GPIO_InitStruct.Pin = GEAR_HIGH_Pin|GEAR_REVERSE_Pin|BUTTON_RTD_Pin;
@@ -1243,9 +1242,6 @@ void MPU_Config(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
-  if(htim->Instance == TIM17) {
-    ___delay_3us_done(htim);
-  }
   if(htim->Instance == TIM7) {
     __hall_timer_elapsed(htim);
   }
