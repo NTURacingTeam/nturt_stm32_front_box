@@ -1242,9 +1242,11 @@ void MPU_Config(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
+#ifdef USE_HALL_SENSOR
   if(htim->Instance == TIM7) {
     __hall_timer_elapsed(htim);
   }
+#endif
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM6) {
     HAL_IncTick();

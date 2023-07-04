@@ -239,7 +239,9 @@ void sensor_handler(void* argument) {
     xTimerStart(sensor_timer_handle, portMAX_DELAY); //TODO: case where timer did not start
 
     //start the hall timer
+#ifdef USE_HALL_SENSOR
     HAL_TIM_Base_Start(&htim7);
+#endif
 
     while(1) {
         if(!pending_notifications) {
@@ -377,7 +379,7 @@ void sensor_handler(void* argument) {
         }
         if(pending_notifications & FLAG_READ_STEER) {
             pending_notifications &= ~FLAG_READ_STEER; //clear flags
-            
+
             //see https://www.cuidevices.com/product/resource/amt22.pdf
             //TODO: using hardware NSS right now because SCK jitters when NSS is switched by software for some reason
             //but hardware NSS does not observe 3us after all bytes transmission
@@ -468,6 +470,7 @@ static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_
     }
 }
 
+
 /**
  * @brief this function calculates the difference between last and now, and updates the "now" time to "last"
  * 
@@ -485,6 +488,7 @@ void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, tim
     last->elapsed_count = now->elapsed_count;
     last->timer_count = now->timer_count;
 }
+
 
 void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c) {
     xTaskNotifyFromISR(sensors_data_task_handle, FLAG_D6T_STARTUP, eSetBits, NULL);
@@ -507,10 +511,12 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
     }
 }
 
+#ifdef USE_HALL_SENSOR
 void __hall_timer_elapsed(TIM_HandleTypeDef *htim) {
     (void)htim;
     hall_timer_elapsed++;
 }
+
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {    
     if(GPIO_Pin == HALL_L_Pin) {
@@ -530,6 +536,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
         }
     }
 }
+#endif
 
 
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
