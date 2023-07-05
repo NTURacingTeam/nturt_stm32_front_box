@@ -39,7 +39,7 @@ static inline float travel_transfer_function (const uint16_t reading) {
 static inline float oil_transfer_function(const uint16_t reading) {
     //see https://www.mouser.tw/datasheet/2/418/8/ENG_DS_MSP300_B1-1130121.pdf
     //extra 3.3/3 is because a voltage divider moved 5V to 3V while max voltage on the system is 3.3V
-    return (((float)reading * 3.3/3)*4 - 1000) * (70)/(15000-1000);
+	return ((float)reading /4096 *3.3/3 *5-1)/4  * 70;
 }
 
 static inline float steer_angle_transfer_function(const uint16_t reading) {
