@@ -52,6 +52,7 @@
 
 #define MUTEX_TIMEOUT 0x02
 #define ADC_TIMEOUT 0x02
+#define ADC_RETRY_TIMEOUT 0x02
 #define I2C_TIMEOUT 0xFF
 #define SPI_TIMEOUT 0x02
 
@@ -189,6 +190,8 @@ void filter_init() {
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
 static uint8_t init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
 static void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, timer_time_t* diff);
+static uint8_t ADC_request_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, uint8_t count);
+static uint8_t ADC_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, uint8_t count, uint32_t* notifications);
 
 void sensor_timer_callback(TimerHandle_t timer) {
     xTaskNotify(sensors_data_task_handle, FLAG_READ_SUS_PEDAL, eSetBits);
@@ -224,15 +227,6 @@ void sensor_handler(void* argument) {
     timer_time_t hall_time_L_last = {0};
     timer_time_t hall_time_R_last = {0};
 
-    //create all the necessary mutexes
-    hall_time_L.mutex = xSemaphoreCreateMutex();
-    hall_time_R.mutex = xSemaphoreCreateMutex();
-    pedal.mutex = xSemaphoreCreateMutex();
-    travel_strain_oil_sensor.mutex = xSemaphoreCreateMutex();
-    tire_temp_sensor.mutex = xSemaphoreCreateMutex();
-    steer_angle_sensor.mutex = xSemaphoreCreateMutex();
-    wheel_speed_sensor.mutex = xSemaphoreCreateMutex();
-
     //TODO: handle every return status of FreeRTOS and HAL API
     (void)argument;
     //variable to store the pending flags that is sent from xTaskNotify
@@ -247,7 +241,7 @@ void sensor_handler(void* argument) {
 //    }
 //    if(init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications)) {
 //        Error_Handler();
-//    }
+//    }]
     
     //wait for 500ms after initialization of D6T
     vTaskDelay(pdMS_TO_TICKS(500));
@@ -288,8 +282,18 @@ void sensor_handler(void* argument) {
         if(pending_notifications & FLAG_READ_SUS_PEDAL) {
             pending_notifications &= ~FLAG_READ_SUS_PEDAL; //clear bit
 
-            HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
-            HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3);
+            if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4) != HAL_OK) {
+                if(ADC_request_retry(&hadc1, &adc_dma_buffer.apps1, 4, 3)) {
+                    ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY | ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
+                    break;
+                }
+            }
+            if(HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3)) {
+                if(ADC_request_retry(&hadc3, &adc_dma_buffer.apps2, 3, 3)) {
+                    ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY | ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
+                    break;
+                }
+            }
 
             const uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin);
             const uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin);
@@ -301,8 +305,23 @@ void sensor_handler(void* argument) {
 
             //wait for both flags to be set
             if (wait_for_notif_flags(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH, pdMS_TO_TICKS(ADC_TIMEOUT), &pending_notifications) != pdTRUE) {
-                //TODO: edge case where only one or neither flags set
-                pending_notifications &= ~(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH);
+                //edge case where only one or neither flags set
+                const uint32_t is_ADC1_done = pending_notifications & FLAG_ADC1_FINISH;
+                const uint32_t is_ADC3_done = pending_notifications & FLAG_ADC3_FINISH;
+                if(!is_ADC3_done) {
+                    if(ADC_retry(&hadc3, &adc_dma_buffer.apps2, 3, 3, &pending_notifications)) {
+                        pending_notifications &= ~(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH);
+                        ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY | ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
+                        break;
+                    }
+                }
+                if(!is_ADC1_done) {
+                    if(ADC_retry(&hadc1, &adc_dma_buffer.apps1, 4, 3, &pending_notifications)) {
+                        pending_notifications &= ~(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH);
+                        ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY | ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
+                        break;
+                    }
+                }
             }
 
         
@@ -472,7 +491,6 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
     return pdTRUE;
 }
 
-
 /**
  * @brief this function initializes the payload data of the i2c addresses and the D6T sensors themselves
  * 
@@ -513,7 +531,6 @@ static uint8_t init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buff
     return 0;
 }
 
-
 /**
  * @brief this function calculates the difference between last and now, and updates the "now" time to "last"
  * 
@@ -532,6 +549,31 @@ void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, tim
     last->timer_count = now->timer_count;
 }
 
+static uint8_t ADC_request_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, const uint8_t count) {
+    uint8_t toReturn = 0;
+    for(int i = 0; i<length; i++) {
+        if(HAL_ADC_Start_DMA(hadc, (uint32_t*)buffer, length) != HAL_OK) {
+            toReturn = 1;
+            vTaskDelay(pdMS_TO_TICKS(1));
+        }
+        else {
+            toReturn = 0;
+            break;
+        }
+    }
+
+    return toReturn;
+}
+
+static uint8_t ADC_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, uint8_t count, uint32_t* notifications) {
+    if(ADC_request_retry(&hadc1, buffer, length, count)) {
+        return 1;
+    }
+    if(wait_for_notif_flags(FLAG_ADC1_FINISH, pdMS_TO_TICKS(ADC_RETRY_TIMEOUT), notifications) != pdTRUE) {
+        return 1;
+    }
+    return 0;
+}
 
 void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c) {
     xTaskNotifyFromISR(sensors_data_task_handle, FLAG_D6T_STARTUP, eSetBits, NULL);
@@ -560,7 +602,6 @@ void __hall_timer_elapsed(TIM_HandleTypeDef *htim) {
     hall_timer_elapsed++;
 }
 
-
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {    
     if(GPIO_Pin == HALL_L_Pin) {
         if(xSemaphoreTakeFromISR(hall_time_L.mutex, NULL) == pdTRUE) {
@@ -581,9 +622,20 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 }
 #endif
 
-
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
     if(hspi == &hspi4) {
     	xTaskNotifyFromISR(sensors_data_task_handle, FLAG_SPI4_FINISH, eSetBits, NULL);
     }
+}
+
+void sensor_mutex_init(void) {
+    //create all the necessary mutexes
+    hall_time_L.mutex = xSemaphoreCreateMutex();
+    hall_time_R.mutex = xSemaphoreCreateMutex();
+    pedal.mutex = xSemaphoreCreateMutex();
+    travel_strain_oil_sensor.mutex = xSemaphoreCreateMutex();
+    tire_temp_sensor.mutex = xSemaphoreCreateMutex();
+    steer_angle_sensor.mutex = xSemaphoreCreateMutex();
+    wheel_speed_sensor.mutex = xSemaphoreCreateMutex();
+    return;
 }

@@ -84,14 +84,14 @@ void user_init() {
 
 // project
 #ifndef TEST
-  //  DashboardController_ctor(&dashboard_controller);
-  //  DashboardController_start(&dashboard_controller);
-  //  FrontBoxCan_ctor(&front_box_can, &hfdcan3);
-  //  FrontBoxCan_start(&front_box_can);
-  //  StatusController_ctor(&status_controller);
-  //  StatusController_start(&status_controller);
-  //  TorqueController_ctor(&torque_controller);
-  //  TorqueController_start(&torque_controller);
+   DashboardController_ctor(&dashboard_controller);
+   DashboardController_start(&dashboard_controller);
+   FrontBoxCan_ctor(&front_box_can, &hfdcan3);
+   FrontBoxCan_start(&front_box_can);
+   StatusController_ctor(&status_controller);
+   StatusController_start(&status_controller);
+   TorqueController_ctor(&torque_controller);
+   TorqueController_start(&torque_controller);
 
   filter_init();
   sensors_data_task_handle = xTaskCreateStatic(
@@ -100,6 +100,7 @@ void user_init() {
   sensor_timer_handle = xTimerCreateStatic(
       "sensors_data_timer", pdMS_TO_TICKS(SENSOR_TIMER_PERIOD), pdTRUE, 0,
       sensor_timer_callback, &sensor_timer_buffer);
+  sensor_mutex_init();
 #endif  // TEST
 
 // test
