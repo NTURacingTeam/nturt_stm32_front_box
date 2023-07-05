@@ -24,10 +24,10 @@
 
 // vehicle parameter
 /// @brief Moror forward direction bit for sending command to inverter.
-#define MOTOR_FORWARD 0
+#define MOTOR_FORWARD 1
 
 /// @brief Moror reverse direction bit for sending command to inverter.
-#define MOTOR_REVERSE 1
+#define MOTOR_REVERSE 0
 
 /// @brief Maximum torque at normal gear in [N * m].
 #define MAXIMUM_TORQUE_NORMAL_GEAR 80.0F
@@ -45,7 +45,7 @@
 #define SOFT_START_TORQUE_STARTING_POINT 5.0F
 
 /// @brief Miniumum safe battery voltage in [V].
-#define MINIUMUM_BATTERY_VOLTAGE 250
+#define MINIUMUM_BATTERY_VOLTAGE 200.0F
 
 /* module config -------------------------------------------------------------*/
 /* button --------------------------------------------------------------------*/

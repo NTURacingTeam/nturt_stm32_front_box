@@ -47,6 +47,8 @@ typedef struct {
 
 extern tire_temp_data_t tire_temp_sensor;
 
+void filter_init();
+
 /*task controls*/
 void sensor_handler(void*);
 extern uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];

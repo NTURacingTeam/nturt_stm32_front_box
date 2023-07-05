@@ -27,6 +27,17 @@
 #define STATUS_CONTROLLER_TASK_STACK_SIZE 256
 #define STATUS_CONTROLLER_TASK_PERIOD 50
 
+// rtd condition
+#define RTD_CON_APPS 0x00000001UL
+#define RTD_CON_BSE 0x00000002UL
+#define RTD_CON_PEDAL_PLAUSIBILITY 0x00000004UL
+#define RTD_CON_CAN_TX 0x00000008UL
+#define RTD_CON_CAN_RX_CRITICAL 0x00000010UL
+#define RTD_CON_CRITICAL_NODE_STATUS 0x00000020UL
+#define RTD_CON_INVERTER_VOLTAGE 0x00000040UL
+
+#define RTD_CON_ALL 0x0000007FUL
+
 /* type ----------------------------------------------------------------------*/
 typedef enum {
   /// @brief Initial state, checking RTD condition.
@@ -59,23 +70,8 @@ typedef struct status_controller {
   /// @brief Current status.
   StatusControllerState status_;
 
-  /// @brief If APPS signal is good. (Checked by APPS error handler.)
-  bool apps_signal_;
-
-  /// @brief If BSE signal is good. (Checked by BSE error handler.)
-  bool bse_signal_;
-
-  /// @brief If pedal plausibility check passes.
-  bool pedal_plausibility_;
-
-  /// @brief Inverter, BMS and rear box. (Checked by CAN timeout error handler.)
-  bool critical_can_rx_;
-
-  /// @brief If the status of inverter, bms and rear box is ok.
-  bool critical_node_status_;
-
-  /// @brief If inverter DC bus voltage is higher than minium battery voltage.
-  bool inverter_voltage_;
+  /// @brief RTD condition;
+  uint32_t rtd_condition_;
 
   /// @brief Task stack buffer.
   StackType_t task_stack_[STATUS_CONTROLLER_TASK_STACK_SIZE];

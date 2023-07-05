@@ -28,12 +28,7 @@
 #include "user_main.h"
 
 /* Private macro -------------------------------------------------------------*/
-// assert macro
-#define IS_CRITICAL_FRAME(ID) \
-  ((ID) == INV_Fast_Info_CANID || (ID) == BMS_Current_Limit_CANID)
-
-#define IS_OPTIONAL_FRAME(ID) ((ID) == 0x00)
-
+/* can tx checking macro -----------------------------------------------------*/
 #define CHECK_TRANSMISSION(RET)                                               \
   do {                                                                        \
     if ((RET) != HAL_OK) {                                                    \
@@ -43,24 +38,32 @@
   } while (0)
 
 /* can frame index for rx receive timeout error ------------------------------*/
+#define NUM_NOT_DEFINED_FRAME 1
 #define NUM_CRITICAL_FRAME 2
 #define NUM_OPTIONAL_FRAME 2
 #define NUM_FRAME (NUM_CRITICAL_FRAME + NUM_OPTIONAL_FRAME)
 
+// not defined frame
+#define FRAME_NOT_DEFINED 0UL
+
 // critical frame
-#define FRAME_CRITICAL_BASE 0
-#define FRAME_CRITICAL_MASK ((1UL << NUM_CRITICAL_FRAME) - 1UL)
-#define FRAME_CRITICAL(X) (FRAME_CRITICAL_BASE + X)
+#define FRAME_CRITICAL_BASE (FRAME_NOT_DEFINED + NUM_NOT_DEFINED_FRAME)
+#define FRAME_CRITICAL(X) (1UL << (FRAME_CRITICAL_BASE + X - 1UL))
 
 #define INV_Fast_Info_INDEX FRAME_CRITICAL(0)
 #define BMS_Current_Limit_INDEX FRAME_CRITICAL(1)
 
+#define FRAME_CRITICAL_MASK \
+  ((1UL << (FRAME_CRITICAL_BASE + NUM_CRITICAL_FRAME - 1UL)) - 1UL)
+
 // optional frame
 #define FRAME_OPTIONAL_BASE (FRAME_CRITICAL_BASE + NUM_CRITICAL_FRAME)
-#define FRAME_OPTIONAL_MASK                              \
-  ((1UL << (FRAME_OPTIONAL_BASE + NUM_OPTIONAL_FRAME)) - \
-   (1UL << FRAME_OPTIONAL_BASE))
-#define FRAME_OPTIONAL(X) (FRAME_OPTIONAL_BASE + X)
+#define FRAME_OPTIONAL(X) (1UL << (FRAME_OPTIONAL_BASE + X - 1UL))
+#define REAR_SENSOR_Status_INDEX FRAME_OPTIONAL(0)
+
+#define FRAME_OPTIONAL_MASK                                            \
+  (((1UL << (FRAME_OPTIONAL_BASE + NUM_OPTIONAL_FRAME - 1UL)) - 1UL) - \
+   FRAME_CRITICAL_MASK)
 
 /* Exported variable ---------------------------------------------------------*/
 // c-coderdbc can singal struct
@@ -87,9 +90,9 @@ static __dtcmram StaticSemaphore_t can_vcu_hp_rx_mutex_cb;
  * @brief Get the index of a frame from its can id.
  *
  * @param id The can id of the frame.
- * @return int The index of the frame. -1 if the frame is not defined.
+ * @return int The index of the frame. 0 if the frame is not defined.
  */
-int frame_id_to_index(uint32_t id);
+uint32_t frame_id_to_index(uint32_t id);
 
 /* virtual function redirection ----------------------------------------------*/
 ModuleRet FrontBoxCan_start(FrontBoxCan* const self) {
@@ -128,8 +131,8 @@ void __FrontBoxCan_configure(CanTransceiver* const self) {
       .FilterIndex = 0,
       .FilterType = FDCAN_FILTER_DUAL,
       .FilterConfig = FDCAN_FILTER_TO_RXFIFO1,
-      .FilterID1 = 0x11,
-      .FilterID2 = 0x12,
+      .FilterID1 = 0xb0,
+      .FilterID2 = 0x202,
       .RxBufferIndex = 0,
   };
   if (HAL_FDCAN_ConfigFilter(&hfdcan3, &can_standard_filter0) != HAL_OK) {
@@ -140,7 +143,7 @@ void __FrontBoxCan_configure(CanTransceiver* const self) {
       .FilterIndex = 1,
       .FilterType = FDCAN_FILTER_DUAL,
       .FilterConfig = FDCAN_FILTER_TO_RXFIFO0,
-      .FilterID1 = 0x13,
+      .FilterID1 = 0xab,
       .FilterID2 = 0x14,
       .RxBufferIndex = 0,
   };
@@ -265,16 +268,19 @@ inline ModuleRet FrontBoxCan_transmit(FrontBoxCan* const self,
 /* Exported function ---------------------------------------------------------*/
 
 /* Static function -----------------------------------------------------------*/
-int frame_id_to_index(uint32_t id) {
+uint32_t frame_id_to_index(uint32_t id) {
   switch (id) {
-    case INV_Fast_Info_CANID:
-      return INV_Fast_Info_INDEX;
-    case BMS_Current_Limit_CANID:
-      return BMS_Current_Limit_INDEX;
+    // case INV_Fast_Info_CANID:
+    //   return INV_Fast_Info_INDEX;
+    // case BMS_Current_Limit_CANID:
+    //   return BMS_Current_Limit_INDEX;
+    case REAR_SENSOR_Status_CANID:
+      return REAR_SENSOR_Status_INDEX;
     default:
-      return -1;
+      return 0;
   }
 }
+
 /* Callback function ---------------------------------------------------------*/
 // coderdbc callback function for getting current time in ms
 uint32_t __get__tick__() { return get_10us() / 100; }
@@ -288,18 +294,21 @@ inline int __send_can_message__(uint32_t msgid, uint8_t ide, uint8_t* d,
 // coderdbc callback function called when receiving a new frame
 void _FMon_MONO_nturt_can_config(FrameMonitor_t* mon, uint32_t msgid) {
   if (mon->cycle_error) {
-    if (IS_CRITICAL_FRAME(msgid)) {
-      front_box_can.rx_error_ &= ~(1UL << frame_id_to_index(msgid));
-      if (!(front_box_can.rx_error_ & FRAME_CRITICAL_MASK)) {
-        ErrorHandler_write_error(&error_handler, ERROR_CODE_CAN_RX_CRITICAL,
-                                 ERROR_CLEAR);
+    printf("timeout lift: %lx\n", msgid);
+    int index = frame_id_to_index(msgid);
+    if (index != FRAME_NOT_DEFINED) {
+      if (index & FRAME_CRITICAL_MASK) {
+        if (front_box_can.rx_error_ & FRAME_CRITICAL_MASK) {
+          ErrorHandler_write_error(&error_handler, ERROR_CODE_CAN_RX_CRITICAL,
+                                   ERROR_CLEAR);
+        }
+      } else if (index & FRAME_OPTIONAL_MASK) {
+        if (front_box_can.rx_error_ & FRAME_OPTIONAL_MASK) {
+          ErrorHandler_write_error(&error_handler, ERROR_CODE_CAN_RX_OPTIONAL,
+                                   ERROR_CLEAR);
+        }
       }
-    } else if (IS_OPTIONAL_FRAME(msgid)) {
-      front_box_can.rx_error_ &= ~(1UL << frame_id_to_index(msgid));
-      if (!(front_box_can.rx_error_ & FRAME_OPTIONAL_MASK)) {
-        ErrorHandler_write_error(&error_handler, ERROR_CODE_CAN_RX_OPTIONAL,
-                                 ERROR_CLEAR);
-      }
+      front_box_can.rx_error_ &= ~index;
     }
 
     mon->cycle_error = false;
@@ -312,18 +321,20 @@ void _TOut_MONO_nturt_can_config(FrameMonitor_t* mon, uint32_t msgid,
   (void)lastcyc;
 
   if (!mon->cycle_error) {
-    if (IS_CRITICAL_FRAME(msgid)) {
-      front_box_can.rx_error_ |= (1UL << frame_id_to_index(msgid));
-      if (front_box_can.rx_error_ & FRAME_CRITICAL_MASK) {
-        ErrorHandler_write_error(&error_handler, ERROR_CODE_CAN_RX_CRITICAL,
-                                 ERROR_SET);
+    int index = frame_id_to_index(msgid);
+    if (index != FRAME_NOT_DEFINED) {
+      if (index & FRAME_CRITICAL_MASK) {
+        if (!(front_box_can.rx_error_ & FRAME_CRITICAL_MASK)) {
+          ErrorHandler_write_error(&error_handler, ERROR_CODE_CAN_RX_CRITICAL,
+                                   ERROR_SET);
+        }
+      } else if (index & FRAME_OPTIONAL_MASK) {
+        if (!(front_box_can.rx_error_ & FRAME_OPTIONAL_MASK)) {
+          ErrorHandler_write_error(&error_handler, ERROR_CODE_CAN_RX_OPTIONAL,
+                                   ERROR_SET);
+        }
       }
-    } else if (IS_OPTIONAL_FRAME(msgid)) {
-      front_box_can.rx_error_ |= (1UL << frame_id_to_index(msgid));
-      if (front_box_can.rx_error_ & FRAME_OPTIONAL_MASK) {
-        ErrorHandler_write_error(&error_handler, ERROR_CODE_CAN_RX_OPTIONAL,
-                                 ERROR_SET);
-      }
+      front_box_can.rx_error_ |= index;
     }
 
     mon->cycle_error = true;
@@ -331,32 +342,31 @@ void _TOut_MONO_nturt_can_config(FrameMonitor_t* mon, uint32_t msgid,
 }
 
 /* coderdbc callback function called befor transmission ----------------------*/
-void FTrn_VCU_Status_nturt_can_config(VCU_Status_t* m) {
-  uint32_t status, error_code;
-  StatusController_get_status(&status_controller, &status);
-  ErrorHandler_get_error(&error_handler, &error_code);
+// don't need to do anything since status and error code are update in
+// error_handler and status_controller respectively
+void FTrn_VCU_Status_nturt_can_config(VCU_Status_t* m) { (void)m; }
 
-  xSemaphoreTake(can_vcu_tx_mutex, portMAX_DELAY);
-  m->VCU_Status = status;
-  m->VCU_Error_Code = error_code;
-  xSemaphoreGive(can_vcu_tx_mutex);
-}
-
+// note: the mutex for can frame is already taken in the transmit function
 void FTrn_FRONT_SENSOR_1_nturt_can_config(FRONT_SENSOR_1_t* m) {
+  GPIO_PinState accelerator_micro, brake_micro;
+  ButtonMonitor_read_state(&button_monitor, MICRO_APPS, &accelerator_micro);
+  ButtonMonitor_read_state(&button_monitor, MICRO_BSE, &brake_micro);
+
+  m->FRONT_SENSOR_Accelerator_Micro = accelerator_micro;
+  m->FRONT_SENSOR_Brake_Micro = brake_micro;
+
+  // TODO: remove this
+  m->FRONT_SENSOR_Steer_Angle = 50;
+
   xSemaphoreTake(pedal.mutex, portMAX_DELAY);
-  xSemaphoreTake(can_front_sensor_tx_mutex, portMAX_DELAY);
   m->FRONT_SENSOR_Accelerator_1_phys = pedal.apps1;
   m->FRONT_SENSOR_Accelerator_2_phys = pedal.apps2;
   m->FRONT_SENSOR_Brake_phys = pedal.bse;
-  m->FRONT_SENSOR_Accelerator_Micro = pedal.micro_apps;
-  m->FRONT_SENSOR_Brake_Micro = pedal.micro_bse;
   xSemaphoreGive(pedal.mutex);
-  xSemaphoreGive(can_front_sensor_tx_mutex);
 }
 
 void FTrn_FRONT_SENSOR_2_nturt_can_config(FRONT_SENSOR_2_t* m) {
   xSemaphoreTake(travel_strain_oil_sensor.mutex, portMAX_DELAY);
-  xSemaphoreTake(can_front_sensor_tx_mutex, portMAX_DELAY);
   m->FRONT_SENSOR_Front_Left_Suspension_phys = travel_strain_oil_sensor.left;
   m->FRONT_SENSOR_Front_Right_Suspension_phys = travel_strain_oil_sensor.right;
   m->FRONT_SENSOR_Front_Brake_Pressure_phys =
@@ -364,12 +374,10 @@ void FTrn_FRONT_SENSOR_2_nturt_can_config(FRONT_SENSOR_2_t* m) {
   m->FRONT_SENSOR_Rear_Brake_Pressure_phys =
       travel_strain_oil_sensor.oil_pressure;
   xSemaphoreGive(travel_strain_oil_sensor.mutex);
-  xSemaphoreGive(can_front_sensor_tx_mutex);
 }
 
 void FTrn_FRONT_SENSOR_3_nturt_can_config(FRONT_SENSOR_3_t* m) {
   xSemaphoreTake(tire_temp_sensor.mutex, portMAX_DELAY);
-  xSemaphoreTake(can_front_sensor_tx_mutex, portMAX_DELAY);
   m->FRONT_SENSOR_Front_Left_Tire_Temperature_1_phys =
       (tire_temp_sensor.left[0] + tire_temp_sensor.left[1]) / 2;
   m->FRONT_SENSOR_Front_Left_Tire_Temperature_2_phys =
@@ -387,5 +395,4 @@ void FTrn_FRONT_SENSOR_3_nturt_can_config(FRONT_SENSOR_3_t* m) {
   m->FRONT_SENSOR_Front_Right_Tire_Temperature_4_phys =
       (tire_temp_sensor.right[6] + tire_temp_sensor.right[7]) / 2;
   xSemaphoreGive(tire_temp_sensor.mutex);
-  xSemaphoreGive(can_front_sensor_tx_mutex);
 }

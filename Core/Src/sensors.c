@@ -40,6 +40,9 @@
 #include "semphr.h"
 #include "timers.h"
 
+// stm32_module include
+#include "stm32_module/stm32_module.h"
+
 // project include
 #include "project_def.h"
 
@@ -57,6 +60,14 @@
 #define FLAG_READ_SUS_PEDAL 0x1000
 #define FLAG_READ_TIRE_TEMP 0x2000
 #define FLAG_D6T_STARTUP 0x100000
+
+#define NUM_FILTER 3
+#define MOVING_AVERAGE_FILTER_MOVING_AVERAGE_SIZE 20
+
+MovingAverageFilter moving_average_filter[NUM_FILTER];
+/* static variable -----------------------------------------------------------*/
+// filter
+static float moving_average_buffer[NUM_FILTER] [MOVING_AVERAGE_FILTER_MOVING_AVERAGE_SIZE];
 
 /**
  * @brief structure to hold the data acquired by DMA
@@ -132,6 +143,13 @@ TaskHandle_t sensors_data_task_handle;
 __dtcmram StaticTimer_t sensor_timer_buffer;
 TimerHandle_t sensor_timer_handle;
 
+void filter_init() {
+  for (int i = 0; i < NUM_FILTER; i++) {
+    MovingAverageFilter_ctor(&moving_average_filter[i], moving_average_buffer[i],
+                             MOVING_AVERAGE_FILTER_MOVING_AVERAGE_SIZE, NULL);
+  }
+}
+
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
 static inline float APPS1_transfer_function(const uint16_t reading, const float);
@@ -179,8 +197,8 @@ void sensor_handler(void* argument) {
     /*initialize D6T sensors*/
     //first wait for 20ms for the sensors to boot up
     vTaskDelay(pdMS_TO_TICKS(20));
-    init_D6T(&hi2c5, &d6t_dma_buffer_R, FLAG_D6T_STARTUP, &pending_notifications);
-    init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications);
+    // init_D6T(&hi2c5, &d6t_dma_buffer_R, FLAG_D6T_STARTUP, &pending_notifications);
+    // init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications);
     //wait for 500ms after initialization before starting to query the sensors
     vTaskDelay(pdMS_TO_TICKS(500));
 
@@ -231,9 +249,13 @@ void sensor_handler(void* argument) {
         
             //TODO: another error handler for implausibility
             //TODO: how to use errorhandler API
-            const float apps1 = fuzzy_edge_remover(APPS1_transfer_function(adc_dma_buffer.apps1, apps1_compensation), 1.0, 0.0);
-            const float apps2 = fuzzy_edge_remover(APPS2_transfer_function(adc_dma_buffer.apps2, apps2_compensation), 1.0, 0.0);
-            const float bse = fuzzy_edge_remover(BSE_transfer_function(adc_dma_buffer.bse, bse_compensation), 1.0, 0.0);
+            float apps1_filtered, apps2_filtered, bse_filtered;
+            MovingAverageFilter_update(&moving_average_filter[0], APPS1_transfer_function(adc_dma_buffer.apps1, apps1_compensation), &apps1_filtered);
+            MovingAverageFilter_update(&moving_average_filter[1], APPS2_transfer_function(adc_dma_buffer.apps2, apps2_compensation), &apps2_filtered);
+            MovingAverageFilter_update(&moving_average_filter[2], BSE_transfer_function(adc_dma_buffer.bse, bse_compensation), &bse_filtered);
+            const float apps1 = fuzzy_edge_remover(apps1_filtered, 1.0, 0.0);
+            const float apps2 = fuzzy_edge_remover(apps2_filtered, 1.0, 0.0);
+            const float bse = fuzzy_edge_remover(bse_filtered, 1.0, 0.0);
 
             uint32_t prevErr = 0;
             ErrorHandler_get_error(&error_handler, &prevErr);
@@ -273,20 +295,20 @@ void sensor_handler(void* argument) {
         if(pending_notifications & FLAG_READ_TIRE_TEMP) {
             pending_notifications &= ~FLAG_READ_TIRE_TEMP;
             //read the values from both sensors
-            HAL_I2C_Mem_Read_DMA(
-                &hi2c5,
-                d6t_dma_buffer_R.addr_write, 
-                d6t_dma_buffer_R.command, 
-                1, 
-                &(d6t_dma_buffer_R.PTAT.low), 
-                sizeof(d6t_dma_buffer_R.PTAT)+sizeof(d6t_dma_buffer_R.temp)+sizeof(d6t_dma_buffer_R.PEC));
-            HAL_I2C_Mem_Read_DMA(
-                &hi2c1, 
-                d6t_dma_buffer_L.addr_write, 
-                d6t_dma_buffer_L.command, 
-                1, 
-                &(d6t_dma_buffer_L.PTAT.low), 
-                sizeof(d6t_dma_buffer_L.PTAT)+sizeof(d6t_dma_buffer_L.temp)+sizeof(d6t_dma_buffer_L.PEC));
+            // HAL_I2C_Mem_Read_DMA(
+            //     &hi2c5,
+            //     d6t_dma_buffer_R.addr_write, 
+            //     d6t_dma_buffer_R.command, 
+            //     1, 
+            //     &(d6t_dma_buffer_R.PTAT.low), 
+            //     sizeof(d6t_dma_buffer_R.PTAT)+sizeof(d6t_dma_buffer_R.temp)+sizeof(d6t_dma_buffer_R.PEC));
+            // HAL_I2C_Mem_Read_DMA(
+            //     &hi2c1, 
+            //     d6t_dma_buffer_L.addr_write, 
+            //     d6t_dma_buffer_L.command, 
+            //     1, 
+            //     &(d6t_dma_buffer_L.PTAT.low), 
+            //     sizeof(d6t_dma_buffer_L.PTAT)+sizeof(d6t_dma_buffer_L.temp)+sizeof(d6t_dma_buffer_L.PEC));
             //wait for the DMA to finish, while we can do other stuff in the mean time
             //TODO: setup timeout exception and deal with error case where the stuff did not finish
         }
@@ -393,7 +415,7 @@ static inline float travel_transfer_function (const uint16_t reading) {
 static inline float oil_transfer_function(const uint16_t reading) {
     //see https://www.mouser.tw/datasheet/2/418/8/ENG_DS_MSP300_B1-1130121.pdf
     //extra 3.3/3 is because a voltage divider moved 5V to 3V while max voltage on the system is 3.3V
-    return (((float)reading * 3.3/3)*4 - 1000) * (70)/(15000-1000);
+    return (((float)reading /4096 *3.3/3 *5-1)/4 *15000-1000)/14000 * 70;
 }
 
 /**

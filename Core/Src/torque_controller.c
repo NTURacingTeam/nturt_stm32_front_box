@@ -22,7 +22,15 @@
 /* Exported variable ---------------------------------------------------------*/
 
 /* Static variable -----------------------------------------------------------*/
-static TaskHandle_t blink_gear_light_task_handle;
+static INV_Command_Message_t inverter_command = {
+    .VCU_Speed_Command = 0,
+    .VCU_Inverter_Enable = 1,
+    .VCU_Inverter_Discharge = 0,
+    .VCU_Speed_Mode_Enable = 0,
+    .VCU_Torque_Limit_Command_phys = 0.0F,
+};
+
+static TaskHandle_t blink_gear_light_task_handle = NULL;
 
 static StaticTask_t blink_gear_light_task_cb;
 
@@ -59,7 +67,6 @@ void TorqueController_ctor(TorqueController* const self) {
   self->super_.vptr_ = &vtbl;
 
   // initialize member variable
-  self->reverse_gear_ = false;
   self->torque_command_last_ = 0.0F;
 
   // register button callback
@@ -76,8 +83,13 @@ void TorqueController_gear_high_button_callback(void* const _self,
                                                 const GPIO_PinState state) {
   TorqueController* const self = (TorqueController*)_self;
 
-  self->maximum_torque_ = (state == GPIO_PIN_SET) ? MAXIMUM_TORQUE_HIGH_GEAR
-                                                  : MAXIMUM_TORQUE_NORMAL_GEAR;
+  if (state == GPIO_PIN_SET) {
+    LedController_turn_on(&led_controller, LED_GEAR);
+    self->maximum_torque_ = MAXIMUM_TORQUE_HIGH_GEAR;
+  } else {
+    LedController_turn_off(&led_controller, LED_GEAR);
+    self->maximum_torque_ = MAXIMUM_TORQUE_NORMAL_GEAR;
+  }
 }
 
 void TorqueController_gear_reverse_button_callback(void* const _self,
@@ -91,12 +103,13 @@ void TorqueController_gear_reverse_button_callback(void* const _self,
         blink_gear_light_task_code, "blink_gear_light",
         configMINIMAL_STACK_SIZE, NULL, TaskPriorityLowest,
         blink_gear_light_task_stack, &blink_gear_light_task_cb);
-    self->reverse_gear_ = true;
+    inverter_command.VCU_Direction_Command = MOTOR_REVERSE;
   } else {
-    if (eTaskGetState(blink_gear_light_task_handle) != eDeleted) {
+    if (blink_gear_light_task_handle == NULL ||
+        eTaskGetState(blink_gear_light_task_handle) != eDeleted) {
       vTaskDelete(blink_gear_light_task_handle);
     }
-    self->reverse_gear_ = false;
+    inverter_command.VCU_Direction_Command = MOTOR_FORWARD;
   }
 }
 
@@ -104,29 +117,35 @@ void TorqueController_task_code(void* const _self) {
   TorqueController* const self = (TorqueController*)_self;
   TickType_t last_wake = xTaskGetTickCount();
 
+  // initialize gear
+  GPIO_PinState gear_state;
+  ButtonMonitor_read_state(&button_monitor, GEAR_HIGH, &gear_state);
+  if (gear_state == GPIO_PIN_SET) {
+    LedController_turn_on(&led_controller, LED_GEAR);
+    self->maximum_torque_ = MAXIMUM_TORQUE_HIGH_GEAR;
+  } else {
+    self->maximum_torque_ = MAXIMUM_TORQUE_NORMAL_GEAR;
+    ButtonMonitor_read_state(&button_monitor, GEAR_REVERSE, &gear_state);
+    if (gear_state == GPIO_PIN_SET) {
+      blink_gear_light_task_handle = xTaskCreateStatic(
+          blink_gear_light_task_code, "blink_gear_light",
+          configMINIMAL_STACK_SIZE, NULL, TaskPriorityLowest,
+          blink_gear_light_task_stack, &blink_gear_light_task_cb);
+      inverter_command.VCU_Direction_Command = MOTOR_REVERSE;
+    } else {
+      inverter_command.VCU_Direction_Command = MOTOR_FORWARD;
+    }
+  }
+
   while (1) {
     StatusControllerState status;
     StatusController_get_status(&status_controller, &status);
 
     if (status == StatusRunning) {
-      static INV_Command_Message_t inverter_command = {
-          .VCU_Speed_Command = 0,
-          .VCU_Inverter_Enable = 1,
-          .VCU_Inverter_Discharge = 0,
-          .VCU_Speed_Mode_Enable = 0,
-          .VCU_Torque_Limit_Command_phys = 0.0F,
-      };
-
-      // set motor direction
-      if (self->reverse_gear_) {
-        inverter_command.VCU_Direction_Command = MOTOR_REVERSE;
-      } else {
-        inverter_command.VCU_Direction_Command = MOTOR_FORWARD;
-      }
-
       // calculate torque command
       xSemaphoreTake(pedal.mutex, portMAX_DELAY);
-      float torque_command = pedal.apps1 * self->maximum_torque_;
+      float torque_command =
+          fmin(pedal.apps1, pedal.apps2) * self->maximum_torque_;
       xSemaphoreGive(pedal.mutex);
       xSemaphoreTake(can_vcu_hp_rx_mutex, portMAX_DELAY);
       float motor_speed_ =
@@ -139,9 +158,8 @@ void TorqueController_task_code(void* const _self) {
             fmax(SOFT_START_TORQUE_STARTING_POINT, self->torque_command_last_) +
                 SOFT_START_TORQUE_SLOPE * (float)TORQUE_CONTROLLER_TASK_PERIOD /
                     1000.0F);
-        if (torque_command > torque_command_threshold) {
-          self->torque_command_last_ = torque_command_threshold;
-        }
+        self->torque_command_last_ =
+            fmin(torque_command, torque_command_threshold);
 
       } else {
         self->torque_command_last_ = torque_command;

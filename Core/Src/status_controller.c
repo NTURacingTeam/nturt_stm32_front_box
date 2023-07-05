@@ -21,8 +21,8 @@
 /* Exported variable ---------------------------------------------------------*/
 
 /* Static variable -----------------------------------------------------------*/
-static TaskHandle_t blink_rtd_light_task_handle;
-static TaskHandle_t play_rtd_sound_task_handle;
+static TaskHandle_t blink_rtd_light_task_handle = NULL;
+static TaskHandle_t play_rtd_sound_task_handle = NULL;
 
 static StaticTask_t blink_rtd_light_task_cb;
 static StaticTask_t play_rtd_sound_task_cb;
@@ -73,10 +73,9 @@ void StatusController_ctor(StatusController* const self) {
   // initialize member variable
   self->status_ = StatusInit;
 
-  // only initialize states controlled by error handler
-  self->apps_signal_ = true;
-  self->bse_signal_ = true;
-  self->critical_can_rx_ = true;
+  // set rtd condition controlled by error handler to true
+  self->rtd_condition_ = RTD_CON_APPS | RTD_CON_BSE | RTD_CON_CAN_TX |
+                         RTD_CON_CAN_RX_CRITICAL | RTD_CON_PEDAL_PLAUSIBILITY;
 }
 
 /* member function -----------------------------------------------------------*/
@@ -90,7 +89,8 @@ ModuleRet StatusController_get_status(StatusController* const self,
 ModuleRet StatusController_reset_status(StatusController* const self) {
   switch (self->status_) {
     case StatusRTD:
-      if (eTaskGetState(play_rtd_sound_task_handle) != eDeleted) {
+      if (play_rtd_sound_task_handle != NULL &&
+          eTaskGetState(play_rtd_sound_task_handle) != eDeleted) {
         vTaskDelete(play_rtd_sound_task_handle);
       }
       self->status_ = StatusReady;
@@ -114,25 +114,33 @@ void StatusController_error_handler(void* const _self, uint32_t error_code) {
 
   if (error_code & ERROR_CODE_APPS_IMPLAUSIBILITY) {
     if (error_code & ERROR_SET) {
-      self->apps_signal_ = false;
+      self->rtd_condition_ &= ~RTD_CON_APPS;
     } else {
-      self->apps_signal_ = true;
+      self->rtd_condition_ |= RTD_CON_APPS;
     }
   }
 
   if (error_code & ERROR_CODE_BSE_IMPLAUSIBILITY) {
     if (error_code & ERROR_SET) {
-      self->bse_signal_ = false;
+      self->rtd_condition_ &= ~RTD_CON_BSE;
     } else {
-      self->bse_signal_ = true;
+      self->rtd_condition_ |= RTD_CON_BSE;
+    }
+  }
+
+  if (error_code & ERROR_CODE_CAN_TX) {
+    if (error_code & ERROR_SET) {
+      self->rtd_condition_ &= ~RTD_CON_CAN_TX;
+    } else {
+      self->rtd_condition_ |= RTD_CON_CAN_TX;
     }
   }
 
   if (error_code & ERROR_CODE_CAN_RX_CRITICAL) {
     if (error_code & ERROR_SET) {
-      self->critical_can_rx_ = false;
+      self->rtd_condition_ &= ~RTD_CON_CAN_RX_CRITICAL;
     } else {
-      self->critical_can_rx_ = true;
+      self->rtd_condition_ |= RTD_CON_CAN_RX_CRITICAL;
     }
   }
 }
@@ -149,49 +157,62 @@ void StatusController_task_code(void* const _self) {
     xSemaphoreTake(pedal.mutex, portMAX_DELAY);
     float apps = pedal.apps1;
     xSemaphoreGive(pedal.mutex);
-    if (self->pedal_plausibility_) {
+    if (self->rtd_condition_ & RTD_CON_PEDAL_PLAUSIBILITY) {
       if (bse_micro == GPIO_PIN_SET &&
           apps > PEDAL_PLAUSIBILITY_CHECK_APPS_THRESHOLD) {
         ErrorHandler_write_error(&error_handler,
                                  ERROR_CODE_PEDAL_IMPLAUSIBILITY, ERROR_SET);
-        self->pedal_plausibility_ = false;
+        self->rtd_condition_ &= ~RTD_CON_PEDAL_PLAUSIBILITY;
       }
     } else {
       if (apps < PEDAL_PLAUSIBILITY_CHECK_APPS_THRESHOLD) {
         ErrorHandler_write_error(&error_handler,
                                  ERROR_CODE_PEDAL_IMPLAUSIBILITY, ERROR_CLEAR);
-        self->pedal_plausibility_ = true;
+        self->rtd_condition_ |= RTD_CON_PEDAL_PLAUSIBILITY;
       }
     }
 
     // critical node status (rear sensor)
     xSemaphoreTake(can_vcu_rx_mutex, portMAX_DELAY);
-    self->critical_node_status_ =
-        (can_vcu_rx.REAR_SENSOR_Status.REAR_SENSOR_Status == StatusRunning);
+    // if (can_vcu_rx.REAR_SENSOR_Status.REAR_SENSOR_Status == StatusRunning) {
+    if (true) {
+      self->rtd_condition_ |= RTD_CON_CRITICAL_NODE_STATUS;
+    } else {
+      self->rtd_condition_ &= ~RTD_CON_CRITICAL_NODE_STATUS;
+    }
+
+    if (can_vcu_rx.INV_Fault_Codes.INV_Post_Fault_Lo ||
+        can_vcu_rx.INV_Fault_Codes.INV_Post_Fault_Hi ||
+        can_vcu_rx.INV_Fault_Codes.INV_Run_Fault_Lo ||
+        can_vcu_rx.INV_Fault_Codes.INV_Run_Fault_Hi) {
+      self->rtd_condition_ &= ~RTD_CON_CRITICAL_NODE_STATUS;
+    } else {
+      self->rtd_condition_ |= RTD_CON_CRITICAL_NODE_STATUS;
+    }
     xSemaphoreGive(can_vcu_rx_mutex);
 
     // inverter voltage
     xSemaphoreTake(can_vcu_hp_rx_mutex, portMAX_DELAY);
-    self->inverter_voltage_ =
-        (can_vcu_hp_rx.INV_Fast_Info.INV_Fast_DC_Bus_Voltage_phys >=
-         MINIUMUM_BATTERY_VOLTAGE);
+    // if (can_vcu_hp_rx.INV_Fast_Info.INV_Fast_DC_Bus_Voltage_phys >=
+    //     MINIUMUM_BATTERY_VOLTAGE) {
+    if (true) {
+      self->rtd_condition_ |= RTD_CON_INVERTER_VOLTAGE;
+    } else {
+      self->rtd_condition_ &= ~RTD_CON_INVERTER_VOLTAGE;
+    }
     xSemaphoreGive(can_vcu_hp_rx_mutex);
 
     /* update status ---------------------------------------------------------*/
     switch (self->status_) {
       case StatusInit:
-        if (self->apps_signal_ && self->bse_signal_ &&
-            self->pedal_plausibility_ && self->critical_can_rx_ &&
-            self->critical_node_status_ && self->inverter_voltage_) {
+        if (self->rtd_condition_ == RTD_CON_ALL) {
           LedController_turn_off(&led_controller, LED_VCU);
           self->status_ = StatusReady;
         }
         break;
 
       case StatusReady:
-        if (self->apps_signal_ && self->bse_signal_ &&
-            self->pedal_plausibility_ && self->critical_can_rx_ &&
-            self->critical_node_status_ && self->inverter_voltage_) {
+        if (self->rtd_condition_ == RTD_CON_ALL) {
           GPIO_PinState button_state;
           ButtonMonitor_read_state(&button_monitor, MICRO_BSE, &button_state);
 
@@ -206,14 +227,16 @@ void StatusController_task_code(void* const _self) {
               self->status_ = StatusRTD;
 
             } else {
-              if (eTaskGetState(blink_rtd_light_task_handle) != eDeleted) {
+              if (blink_rtd_light_task_handle != NULL &&
+                  eTaskGetState(blink_rtd_light_task_handle) != eDeleted) {
                 vTaskDelete(blink_rtd_light_task_handle);
               }
               LedController_turn_on(&led_controller, LED_RTD);
             }
 
           } else {
-            if (eTaskGetState(blink_rtd_light_task_handle) == eDeleted) {
+            if (blink_rtd_light_task_handle == NULL ||
+                eTaskGetState(blink_rtd_light_task_handle) == eDeleted) {
               LedController_turn_off(&led_controller, LED_RTD);
               blink_rtd_light_task_handle = xTaskCreateStatic(
                   blink_rtd_light_task_code, "blink_rtd_light",
@@ -224,7 +247,8 @@ void StatusController_task_code(void* const _self) {
 
         } else {
           self->status_ = StatusError;
-          if (eTaskGetState(blink_rtd_light_task_handle) != eDeleted) {
+          if (blink_rtd_light_task_handle != NULL &&
+              eTaskGetState(blink_rtd_light_task_handle) != eDeleted) {
             vTaskDelete(blink_rtd_light_task_handle);
           }
           LedController_turn_off(&led_controller, LED_RTD);
@@ -233,24 +257,22 @@ void StatusController_task_code(void* const _self) {
         break;
 
       case StatusRTD:
-        if (eTaskGetState(play_rtd_sound_task_handle) == eDeleted) {
+        if (play_rtd_sound_task_handle == NULL ||
+            eTaskGetState(play_rtd_sound_task_handle) == eDeleted) {
+          LedController_turn_off(&led_controller, LED_RTD);
           self->status_ = StatusRunning;
         }
         break;
 
       case StatusRunning:
-        if (!(self->apps_signal_ && self->bse_signal_ &&
-              self->pedal_plausibility_ && self->critical_can_rx_ &&
-              self->critical_node_status_ && self->inverter_voltage_)) {
+        if (self->rtd_condition_ != RTD_CON_ALL) {
           LedController_turn_on(&led_controller, LED_VCU);
           self->status_ = StatusError;
         }
         break;
 
       case StatusError:
-        if (self->apps_signal_ && self->bse_signal_ &&
-            self->pedal_plausibility_ && self->critical_can_rx_ &&
-            self->critical_node_status_ && self->inverter_voltage_) {
+        if (self->rtd_condition_ == RTD_CON_ALL) {
           LedController_turn_off(&led_controller, LED_VCU);
           self->status_ = StatusReady;
         }
@@ -260,6 +282,7 @@ void StatusController_task_code(void* const _self) {
     /* write status to can frame ---------------------------------------------*/
     xSemaphoreTake(can_vcu_tx_mutex, portMAX_DELAY);
     can_vcu_tx.VCU_Status.VCU_Status = self->status_;
+    can_vcu_tx.VCU_Status.VCU_RTD_Condition = self->rtd_condition_;
     xSemaphoreGive(can_vcu_tx_mutex);
 
     vTaskDelayUntil(&last_wake, STATUS_CONTROLLER_TASK_PERIOD);

@@ -92,6 +92,8 @@ void user_init() {
   StatusController_start(&status_controller);
   TorqueController_ctor(&torque_controller);
   TorqueController_start(&torque_controller);
+
+  filter_init();
   sensors_data_task_handle = xTaskCreateStatic(
       sensor_handler, "sensors_data_task", SENSOR_DATA_TASK_STACK_SIZE, NULL,
       TaskPriorityHigh, sensors_data_task_buffer, &sensors_data_task_cb);
@@ -265,7 +267,7 @@ static void auxiliary_error_handler(void *const argument, uint32_t error_code) {
 
   // blink led
   if (error_code & ERROR_SET) {
-    LedController_blink(&led_controller, LED_ERROR, 500);
+    LedController_blink(&led_controller, LED_ERROR, 3000);
   }
 }
 

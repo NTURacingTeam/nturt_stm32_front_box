@@ -43,9 +43,6 @@ typedef struct torque_controller {
   /// @brief Maximum torque [N * m].
   float maximum_torque_;
 
-  /// @brief If is reverse gear.
-  bool reverse_gear_;
-
   /// @brief Last torque command [N * m].
   float torque_command_last_;
 

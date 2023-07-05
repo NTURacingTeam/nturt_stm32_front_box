@@ -82,10 +82,6 @@ void Error_Handler(void);
 #define Encoder_MOSI_GPIO_Port GPIOE
 #define BUTTON_BUILTIN_Pin GPIO_PIN_13
 #define BUTTON_BUILTIN_GPIO_Port GPIOC
-#define RPI_SCL_Pin GPIO_PIN_0
-#define RPI_SCL_GPIO_Port GPIOF
-#define RPI_SDA_Pin GPIO_PIN_1
-#define RPI_SDA_GPIO_Port GPIOF
 #define MICRO_BSE_Pin GPIO_PIN_2
 #define MICRO_BSE_GPIO_Port GPIOF
 #define HALL_L_Pin GPIO_PIN_3
