@@ -100,9 +100,6 @@ void user_init() {
   sensor_timer_handle = xTimerCreateStatic(
       "sensors_data_timer", pdMS_TO_TICKS(SENSOR_TIMER_PERIOD), pdTRUE, 0,
       sensor_timer_callback, &sensor_timer_buffer);
-  pedal.mutex = xSemaphoreCreateMutex();
-  travel_strain_oil_sensor.mutex = xSemaphoreCreateMutex();
-  tire_temp_sensor.mutex = xSemaphoreCreateMutex();
 #endif  // TEST
 
 // test

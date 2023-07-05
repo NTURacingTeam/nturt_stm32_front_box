@@ -45,6 +45,7 @@
 
 // project include
 #include "project_def.h"
+#include "transfer_functions.h"
 
 //own include
 #include "sensors.h"
@@ -52,14 +53,28 @@
 #define MUTEX_TIMEOUT 0x02
 #define ADC_TIMEOUT 0x02
 #define I2C_TIMEOUT 0xFF
+#define SPI_TIMEOUT 0x02
 
 #define FLAG_ADC1_FINISH 0x10
 #define FLAG_ADC3_FINISH 0x20
 #define FLAG_I2C5_FINISH 0x40
 #define FLAG_I2C1_FINISH 0x80
+#define FLAG_SPI4_FINISH 0x100
+#define FLAG_3US_FINISH 0x200 
 #define FLAG_READ_SUS_PEDAL 0x1000
 #define FLAG_READ_TIRE_TEMP 0x2000
+#define FLAG_READ_STEER 0x4000
 #define FLAG_D6T_STARTUP 0x100000
+#define FLAG_HALL_EDGE_RIGHT 0x20000 //TODO: makes sure the names are either hall or wheel speed but not both
+#define FLAG_HALL_EDGE_LEFT 0x40000
+
+#define NUM_FILTER 3
+#define MOVING_AVERAGE_FILTER_MOVING_AVERAGE_SIZE 20
+
+MovingAverageFilter moving_average_filter[NUM_FILTER];
+/* static variable -----------------------------------------------------------*/
+// filter
+static float moving_average_buffer[NUM_FILTER] [MOVING_AVERAGE_FILTER_MOVING_AVERAGE_SIZE];
 
 #define NUM_FILTER 3
 #define MOVING_AVERAGE_FILTER_MOVING_AVERAGE_SIZE 20
@@ -104,6 +119,15 @@ typedef struct {
     uint8_t PEC;            //< packet error check code. Is to be compared with the CRC-8 result of previous 21 bytes.
 } i2c_d6t_dma_buffer_t;
 
+typedef struct {
+    uint32_t elapsed_count;
+    uint32_t timer_count;
+    SemaphoreHandle_t mutex;
+} timer_time_t;
+
+static volatile timer_time_t hall_time_L = {0};
+static volatile timer_time_t hall_time_R = {0};
+static volatile uint32_t hall_timer_elapsed = 0;
 
 /**
  * @brief global singleton resource that stores the current state of the pedal sensors
@@ -132,6 +156,17 @@ tire_temp_data_t tire_temp_sensor = {
     //mutex is initialized in user_main.c along with everything freertos
 };
 
+steer_angle_data_t steer_angle_sensor = {
+    .steering_angle = 0.0
+    //mutex is initialized in user_main.c along with everything freertos 
+};
+
+wheel_speed_data_t wheel_speed_sensor = {
+    .left = 0.0,
+    .right = 0.0
+    //mutex is initialized in user_main.c along with everything freertos 
+};
+
 /*task controls*/
 // __dtcmram 
 uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
@@ -152,17 +187,8 @@ void filter_init() {
 
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
-static inline float APPS1_transfer_function(const uint16_t reading, const float);
-static inline float APPS2_transfer_function (const uint16_t reading, const float);
-static inline float BSE_transfer_function(const uint16_t reading, float);
-static inline float tire_temp_transfer_function(const uint8_t high, const uint8_t low);
-static inline float oil_transfer_function(const uint16_t reading);
-static inline float travel_transfer_function (const uint16_t reading);
-#define START_TO_OUTPUT_MARGIN 0.007
-#define OUT_OF_BOUNDS_MARGIN 0.05 //TODO: where do we put these fuzzy bound constants
-float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge);
-
 static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
+static void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, timer_time_t* diff);
 
 void sensor_timer_callback(TimerHandle_t timer) {
     xTaskNotify(sensors_data_task_handle, FLAG_READ_SUS_PEDAL, eSetBits);
@@ -172,6 +198,10 @@ void sensor_timer_callback(TimerHandle_t timer) {
     uint32_t expire_count = (uint32_t)pvTimerGetTimerID(timer);
     expire_count++;
     vTimerSetTimerID(timer, (void*)expire_count);
+
+    if((uint32_t)pvTimerGetTimerID(timer) >= STEER_ANGLE_PERIOD/SENSOR_TIMER_PERIOD) {
+        xTaskNotify(sensors_data_task_handle, FLAG_READ_STEER, eSetBits);
+    }
 
     if((uint32_t)pvTimerGetTimerID(timer) >= TIRE_TEMP_PERIOD/SENSOR_TIMER_PERIOD) {
         xTaskNotify(sensors_data_task_handle, FLAG_READ_TIRE_TEMP, eSetBits);
@@ -188,6 +218,20 @@ void sensor_handler(void* argument) {
     static __dma_buffer adc_dma_buffer_t adc_dma_buffer = {0};
     static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_R = {0};
     static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_L = {0};
+    static __dma_buffer uint8_t spi_rx_buffer[4] = {0};
+    static __dma_buffer uint8_t spi_tx_buffer[4] = {0};
+
+    timer_time_t hall_time_L_last = {0};
+    timer_time_t hall_time_R_last = {0};
+
+    //create all the necessary mutexes
+    hall_time_L.mutex = xSemaphoreCreateMutex();
+    hall_time_R.mutex = xSemaphoreCreateMutex();
+    pedal.mutex = xSemaphoreCreateMutex();
+    travel_strain_oil_sensor.mutex = xSemaphoreCreateMutex();
+    tire_temp_sensor.mutex = xSemaphoreCreateMutex();
+    steer_angle_sensor.mutex = xSemaphoreCreateMutex();
+    wheel_speed_sensor.mutex = xSemaphoreCreateMutex();
 
     //TODO: handle every return status of FreeRTOS and HAL API
     (void)argument;
@@ -219,6 +263,11 @@ void sensor_handler(void* argument) {
     //start the initial read, and start the timer that should later notifies this task to do stuff again
     xTaskNotify(xTaskGetCurrentTaskHandle(), FLAG_READ_SUS_PEDAL | FLAG_READ_TIRE_TEMP, eSetBits);
     xTimerStart(sensor_timer_handle, portMAX_DELAY); //TODO: case where timer did not start
+
+    //start the hall timer
+#ifdef USE_HALL_SENSOR
+    HAL_TIM_Base_Start(&htim7);
+#endif
 
     while(1) {
         if(!pending_notifications) {
@@ -292,6 +341,30 @@ void sensor_handler(void* argument) {
             xSemaphoreGive(travel_strain_oil_sensor.mutex);
         
         }
+        if(pending_notifications & FLAG_HALL_EDGE_LEFT) {
+            xSemaphoreTake(hall_time_L.mutex, MUTEX_TIMEOUT);
+                pending_notifications &= ~FLAG_HALL_EDGE_LEFT; //clear flags
+
+                timer_time_t diff = {0};
+                update_time_stamp(&hall_time_L_last, &hall_time_L, &diff);
+
+                xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT); 
+                    wheel_speed_sensor.left = wheel_speed_tranfser_function(diff.elapsed_count, diff.timer_count);
+                xSemaphoreGive(wheel_speed_sensor.mutex);
+            xSemaphoreGive(hall_time_L.mutex);
+        }
+        if(pending_notifications & FLAG_HALL_EDGE_RIGHT) {
+            xSemaphoreTake(hall_time_R.mutex, MUTEX_TIMEOUT);
+                pending_notifications &= ~FLAG_HALL_EDGE_RIGHT; //clear flags
+
+                timer_time_t diff = {0};
+                update_time_stamp(&hall_time_R_last, &hall_time_R, &diff);
+
+                xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT);
+                    wheel_speed_sensor.right = wheel_speed_tranfser_function(diff.elapsed_count, diff.timer_count);
+                xSemaphoreGive(wheel_speed_sensor.mutex);
+            xSemaphoreGive(hall_time_R.mutex);
+        }
         if(pending_notifications & FLAG_READ_TIRE_TEMP) {
             pending_notifications &= ~FLAG_READ_TIRE_TEMP;
             //read the values from both sensors
@@ -334,6 +407,28 @@ void sensor_handler(void* argument) {
                 }
             xSemaphoreGive(tire_temp_sensor.mutex);   
         }
+        if(pending_notifications & FLAG_READ_STEER) {
+            pending_notifications &= ~FLAG_READ_STEER; //clear flags
+
+            //see https://www.cuidevices.com/product/resource/amt22.pdf
+            //TODO: using hardware NSS right now because SCK jitters when NSS is switched by software for some reason
+            //but hardware NSS does not observe 3us after all bytes transmission
+            spi_tx_buffer[0] = 0;
+            spi_tx_buffer[1] = 0;
+
+            HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_buffer, spi_rx_buffer, 2);
+            wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications);
+
+            //TODO: CRC?
+
+            //calculate position and put the stuff in to variables
+            const uint8_t highByte = spi_rx_buffer[0];
+            const uint8_t lowByte = spi_rx_buffer[1];
+            const uint16_t position = ((uint16_t)highByte << 8) + (uint16_t)lowByte;
+            xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
+                steer_angle_sensor.steering_angle = steer_angle_transfer_function((position & 0x3FFF) >> 2);
+            xSemaphoreGive(steer_angle_sensor.mutex);
+        }
     }
 }
 
@@ -367,56 +462,6 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
     return pdTRUE;
 }
 
-/**
- * @brief transfer function for the first APPS
- * 
- * @param reading the 12 bit value read from the ADC
- * @return float the normalized read value spanning from 0 to 1
- * 
- * The detailed description about the transfer function can be found here:
- * https://hackmd.io/@nturacing/ByOF6I5T9/%2F2Jgh0ieyS0mc_r-6pHKQyQ
- */
-static inline float APPS1_transfer_function(const uint16_t reading, const float compensation) {
-    return (float)(reading-860)/(3891-860) + compensation;
-}
-
-static inline float APPS2_transfer_function (const uint16_t reading, const float compensation) {
-    return (float)(reading*2-860)/(3891-860) + compensation;
-}
-
-static inline float BSE_transfer_function(const uint16_t reading, const float compensation) {
-    // since we only use 2.5~24.5mm part of the domain instead of the full 0~25, we have
-    return (float)(reading-82)/(3686-82) + compensation;
-}
-
-float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge) {
-    if(raw < lowEdge) {
-        if(raw > -(OUT_OF_BOUNDS_MARGIN) + lowEdge) return lowEdge;
-        else return raw;
-    } 
-    else if(raw > highEdge) {
-        if(raw < highEdge + OUT_OF_BOUNDS_MARGIN) return highEdge;
-        else return raw;
-    }
-    else {
-        if(raw < START_TO_OUTPUT_MARGIN + lowEdge) return lowEdge;
-        else return raw;
-    }
-}
-
-static inline float tire_temp_transfer_function(const uint8_t highByte, const uint8_t lowByte) {
-    return (float)((((int16_t)highByte) << 8) + (int16_t)lowByte)/5;
-}
-
-static inline float travel_transfer_function (const uint16_t reading) {
-    return 75 - (float)reading/4096 * 75;
-}
-
-static inline float oil_transfer_function(const uint16_t reading) {
-    //see https://www.mouser.tw/datasheet/2/418/8/ENG_DS_MSP300_B1-1130121.pdf
-    //extra 3.3/3 is because a voltage divider moved 5V to 3V while max voltage on the system is 3.3V
-    return (((float)reading /4096 *3.3/3 *5-1)/4 *15000-1000)/14000 * 70;
-}
 
 /**
  * @brief this function initializes the payload data of the i2c addresses and the D6T sensors themselves
@@ -455,6 +500,26 @@ static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_
     }
 }
 
+
+/**
+ * @brief this function calculates the difference between last and now, and updates the "now" time to "last"
+ * 
+ * @param last previous time this function is called
+ * @param now the new time stamp at which this time is called
+ * @param diff calculates the time difference between last and now
+ */
+void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, timer_time_t* diff) {
+    diff->elapsed_count = now->elapsed_count - last->elapsed_count;
+    diff->timer_count = now->timer_count - last->timer_count;
+
+    if(now->timer_count < last->timer_count) {
+        diff->elapsed_count -= 1;
+    }
+    last->elapsed_count = now->elapsed_count;
+    last->timer_count = now->timer_count;
+}
+
+
 void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c) {
     xTaskNotifyFromISR(sensors_data_task_handle, FLAG_D6T_STARTUP, eSetBits, NULL);
 }
@@ -473,5 +538,39 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
         xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC1_FINISH, eSetBits, NULL);
     } else if(hadc == &hadc3) {
         xTaskNotifyFromISR(sensors_data_task_handle, FLAG_ADC3_FINISH, eSetBits, NULL);
+    }
+}
+
+#ifdef USE_HALL_SENSOR
+void __hall_timer_elapsed(TIM_HandleTypeDef *htim) {
+    (void)htim;
+    hall_timer_elapsed++;
+}
+
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {    
+    if(GPIO_Pin == HALL_L_Pin) {
+        if(xSemaphoreTakeFromISR(hall_time_L.mutex, NULL) == pdTRUE) {
+            hall_time_L.timer_count = __HAL_TIM_GET_COUNTER(&htim7);
+            hall_time_L.elapsed_count = hall_timer_elapsed;
+            xTaskNotifyFromISR(sensors_data_task_handle, FLAG_HALL_EDGE_LEFT, eSetBits, NULL);
+            xSemaphoreGiveFromISR(hall_time_L.mutex, NULL);
+        }
+    }   
+    if(GPIO_Pin == HALL_R_Pin) {
+        if(xSemaphoreTakeFromISR(hall_time_R.mutex, NULL) == pdTRUE) {
+            hall_time_R.timer_count = __HAL_TIM_GET_COUNTER(&htim7);
+            hall_time_R.elapsed_count = hall_timer_elapsed;
+            xTaskNotifyFromISR(sensors_data_task_handle, FLAG_HALL_EDGE_RIGHT, eSetBits, NULL);
+            xSemaphoreGiveFromISR(hall_time_R.mutex, NULL);
+        }
+    }
+}
+#endif
+
+
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
+    if(hspi == &hspi4) {
+    	xTaskNotifyFromISR(sensors_data_task_handle, FLAG_SPI4_FINISH, eSetBits, NULL);
     }
 }

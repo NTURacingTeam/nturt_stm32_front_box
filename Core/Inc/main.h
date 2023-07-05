@@ -55,6 +55,8 @@ extern IWDG_HandleTypeDef hiwdg1;
 extern SPI_HandleTypeDef hspi4;
 
 extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim7;
+extern TIM_HandleTypeDef htim17;
 
 extern UART_HandleTypeDef huart3;
 /* USER CODE END EC */
@@ -72,10 +74,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define WHEEL_SPEED_TIMER_PERIOD 10.0
+#define WHEEL_SPEED_TIMER_COUNT_PERIOD 0.001
 #define Encoder_SCK_Pin GPIO_PIN_2
 #define Encoder_SCK_GPIO_Port GPIOE
-#define ENCODER_SS_Pin GPIO_PIN_4
-#define ENCODER_SS_GPIO_Port GPIOE
+#define Encoder_SS_Pin GPIO_PIN_4
+#define Encoder_SS_GPIO_Port GPIOE
 #define Encoder_MISO_Pin GPIO_PIN_5
 #define Encoder_MISO_GPIO_Port GPIOE
 #define Encoder_MOSI_Pin GPIO_PIN_6
