@@ -187,7 +187,7 @@ void filter_init() {
 
 //private functions
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
-static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
+static uint8_t init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
 static void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, timer_time_t* diff);
 
 void sensor_timer_callback(TimerHandle_t timer) {
@@ -239,11 +239,17 @@ void sensor_handler(void* argument) {
     uint32_t pending_notifications = 0U;
 
     /*initialize D6T sensors*/
-    //first wait for 20ms for the sensors to boot up
+    //first wait for 20ms for the D6T sensors to boot up
     vTaskDelay(pdMS_TO_TICKS(20));
-    // init_D6T(&hi2c5, &d6t_dma_buffer_R, FLAG_D6T_STARTUP, &pending_notifications);
-    // init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications);
-    //wait for 500ms after initialization before starting to query the sensors
+
+//    if(init_D6T(&hi2c5, &d6t_dma_buffer_R, FLAG_D6T_STARTUP, &pending_notifications)) {
+//        Error_Handler();
+//    }
+//    if(init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications)) {
+//        Error_Handler();
+//    }
+    
+    //wait for 500ms after initialization of D6T
     vTaskDelay(pdMS_TO_TICKS(500));
 
     /*initialize the pedal sensors' compensation*/
@@ -255,14 +261,18 @@ void sensor_handler(void* argument) {
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
     HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3);
     //wait for both flags to be set
-    wait_for_notif_flags(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH, portMAX_DELAY, &pending_notifications);
+    if(wait_for_notif_flags(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH, ADC_TIMEOUT, &pending_notifications) != pdTRUE) {
+        Error_Handler();
+    }
     const float apps1_compensation = - APPS1_transfer_function(adc_dma_buffer.apps1, 0);
     const float apps2_compensation = - APPS2_transfer_function(adc_dma_buffer.apps2, 0);
     const float bse_compensation = - BSE_transfer_function(adc_dma_buffer.bse, 0);
     
     //start the initial read, and start the timer that should later notifies this task to do stuff again
     xTaskNotify(xTaskGetCurrentTaskHandle(), FLAG_READ_SUS_PEDAL | FLAG_READ_TIRE_TEMP, eSetBits);
-    xTimerStart(sensor_timer_handle, portMAX_DELAY); //TODO: case where timer did not start
+    if(xTimerStart(sensor_timer_handle, portMAX_DELAY) != pdPASS) {
+        Error_Handler();
+    }
 
     //start the hall timer
 #ifdef USE_HALL_SENSOR
@@ -471,7 +481,7 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
  * @param txThreadFlag the task notification flag used to indicate completion of transfer
  * @param otherflags the other flags that might be caught when are waiting for the the DMA to complete through FreeRTOS notifications
  */
-static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags) {
+static uint8_t init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags) {
     //TODO: use the return value to report error
     //fixed parameters of D6T sensors: address, I2C command to get data, and the startup transmissions
     const uint8_t D6Taddr = 0b0001010;
@@ -493,11 +503,14 @@ static void init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_
     if(HAL_I2C_IsDeviceReady(hi2c, D6Taddr << 1, 5, 0xF) == HAL_OK) {
         for(int i = 0; i<5; i++) {
             HAL_I2C_Master_Transmit_DMA(hi2c, D6Taddr << 1, startupCommand[i], 4);
-            wait_for_notif_flags(txThreadFlag, I2C_TIMEOUT, otherflags);
+            if(wait_for_notif_flags(txThreadFlag, I2C_TIMEOUT, otherflags) != pdTRUE) {
+                return 1;
+            }
         }
     } else {
-        //TODO: report error - cannot connect to sensor
+        return 1;
     }
+    return 0;
 }
 
 
