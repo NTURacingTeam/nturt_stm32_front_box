@@ -85,6 +85,10 @@ MovingAverageFilter moving_average_filter[NUM_FILTER];
 // filter
 static float moving_average_buffer[NUM_FILTER] [MOVING_AVERAGE_FILTER_MOVING_AVERAGE_SIZE];
 
+#define STEER_PERIOD_NORMAL 5
+#define STEER_PERIOD_ERR 15
+uint32_t steer_angle_period = STEER_PERIOD_NORMAL; //in ms
+
 /**
  * @brief structure to hold the data acquired by DMA
  * 
@@ -202,7 +206,7 @@ void sensor_timer_callback(TimerHandle_t timer) {
     expire_count++;
     vTimerSetTimerID(timer, (void*)expire_count);
 
-    if((uint32_t)pvTimerGetTimerID(timer) % (STEER_ANGLE_PERIOD/SENSOR_TIMER_PERIOD) == 0) {
+    if((uint32_t)pvTimerGetTimerID(timer) % (steer_angle_period/SENSOR_TIMER_PERIOD) == 0) {
         xTaskNotify(sensors_data_task_handle, FLAG_READ_STEER, eSetBits);
     }
 
@@ -446,9 +450,16 @@ void sensor_handler(void* argument) {
             spi_tx_buffer[1] = 0;
 
             if(HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_buffer, spi_rx_buffer, 2) != HAL_OK) {
-                ;
+                steer_angle_period = STEER_PERIOD_ERR;
+                break;
             }
-            wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications);
+            if(wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications) != pdTRUE) {
+                steer_angle_period = STEER_PERIOD_ERR;
+                break;
+            }
+            else {
+                steer_angle_period = STEER_PERIOD_NORMAL;
+            }
 
             //TODO: CRC?
 
