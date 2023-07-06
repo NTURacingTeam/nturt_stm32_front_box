@@ -51,7 +51,6 @@
 #define FRAME_CRITICAL(X) (1UL << (FRAME_CRITICAL_BASE + X - 1UL))
 
 #define INV_Fast_Info_INDEX FRAME_CRITICAL(0)
-#define BMS_Current_Limit_INDEX FRAME_CRITICAL(1)
 
 #define FRAME_CRITICAL_MASK \
   ((1UL << (FRAME_CRITICAL_BASE + NUM_CRITICAL_FRAME - 1UL)) - 1UL)
@@ -157,14 +156,14 @@ void __FrontBoxCan_configure(CanTransceiver* const self) {
     Error_Handler();
   }
 
-  // activate interrupt for high priority can signal to fifo1
-  if (HAL_FDCAN_ActivateNotification(&hfdcan3, FDCAN_IT_RX_FIFO1_NEW_MESSAGE,
-                                     0) != HAL_OK) {
+  // start can
+  if (HAL_FDCAN_Start(&hfdcan3) != HAL_OK) {
     Error_Handler();
   }
 
-  // start can
-  if (HAL_FDCAN_Start(&hfdcan3) != HAL_OK) {
+  // activate interrupt for high priority can signal to fifo1
+  if (HAL_FDCAN_ActivateNotification(&hfdcan3, FDCAN_IT_RX_FIFO1_NEW_MESSAGE,
+                                     0) != HAL_OK) {
     Error_Handler();
   }
 
@@ -270,10 +269,8 @@ inline ModuleRet FrontBoxCan_transmit(FrontBoxCan* const self,
 /* Static function -----------------------------------------------------------*/
 uint32_t frame_id_to_index(uint32_t id) {
   switch (id) {
-    // case INV_Fast_Info_CANID:
-    //   return INV_Fast_Info_INDEX;
-    // case BMS_Current_Limit_CANID:
-    //   return BMS_Current_Limit_INDEX;
+    case INV_Fast_Info_CANID:
+      return INV_Fast_Info_INDEX;
     case REAR_SENSOR_Status_CANID:
       return REAR_SENSOR_Status_INDEX;
     default:
