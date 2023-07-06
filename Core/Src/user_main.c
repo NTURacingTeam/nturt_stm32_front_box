@@ -94,13 +94,7 @@ void user_init() {
    TorqueController_start(&torque_controller);
 
   filter_init();
-  sensors_data_task_handle = xTaskCreateStatic(
-      sensor_handler, "sensors_data_task", SENSOR_DATA_TASK_STACK_SIZE, NULL,
-      TaskPriorityHigh, sensors_data_task_buffer, &sensors_data_task_cb);
-  sensor_timer_handle = xTimerCreateStatic(
-      "sensors_data_timer", pdMS_TO_TICKS(SENSOR_TIMER_PERIOD), pdTRUE, 0,
-      sensor_timer_callback, &sensor_timer_buffer);
-  sensor_mutex_init();
+  sensor_init();
 #endif  // TEST
 
 // test

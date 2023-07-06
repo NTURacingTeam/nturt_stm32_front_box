@@ -81,6 +81,6 @@ extern TimerHandle_t sensor_timer_handle;
 void __hall_timer_elapsed(TIM_HandleTypeDef *htim);
 
 //init the freertos objects
-void sensor_mutex_init(void);
+void sensor_init(void);
 
 #endif //_SENSORS_H
