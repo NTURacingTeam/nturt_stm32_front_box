@@ -202,7 +202,7 @@ void sensor_timer_callback(TimerHandle_t timer) {
     expire_count++;
     vTimerSetTimerID(timer, (void*)expire_count);
 
-    if((uint32_t)pvTimerGetTimerID(timer) >= STEER_ANGLE_PERIOD/SENSOR_TIMER_PERIOD) {
+    if((uint32_t)pvTimerGetTimerID(timer) % (STEER_ANGLE_PERIOD/SENSOR_TIMER_PERIOD) == 0) {
         xTaskNotify(sensors_data_task_handle, FLAG_READ_STEER, eSetBits);
     }
 
@@ -288,7 +288,7 @@ void sensor_handler(void* argument) {
                     break;
                 }
             }
-            if(HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3)) {
+            if(HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3) != HAL_OK) {
                 if(ADC_request_retry(&hadc3, &adc_dma_buffer.apps2, 3, 3)) {
                     ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY | ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
                     break;
@@ -445,7 +445,9 @@ void sensor_handler(void* argument) {
             spi_tx_buffer[0] = 0;
             spi_tx_buffer[1] = 0;
 
-            HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_buffer, spi_rx_buffer, 2);
+            if(HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_buffer, spi_rx_buffer, 2) != HAL_OK) {
+                ;
+            }
             wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications);
 
             //TODO: CRC?
@@ -566,7 +568,7 @@ static uint8_t ADC_request_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint
 }
 
 static uint8_t ADC_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, uint8_t count, uint32_t* notifications) {
-    if(ADC_request_retry(&hadc1, buffer, length, count)) {
+    if(ADC_request_retry(&hadc, buffer, length, count)) {
         return 1;
     }
     if(wait_for_notif_flags(FLAG_ADC1_FINISH, pdMS_TO_TICKS(ADC_RETRY_TIMEOUT), notifications) != pdTRUE) {
