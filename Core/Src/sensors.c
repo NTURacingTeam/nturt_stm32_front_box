@@ -641,11 +641,11 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
     }
 }
 
-void sensor_mutex_init(void) {
+void sensor_init(void) {
     sensors_data_task_handle = xTaskCreateStatic(
         sensor_handler, "sensors_data_task", SENSOR_DATA_TASK_STACK_SIZE, NULL,
         TaskPriorityHigh, sensors_data_task_buffer, &sensors_data_task_cb);
-        
+
     sensor_timer_handle = xTimerCreateStatic(
         "sensors_data_timer", pdMS_TO_TICKS(SENSOR_TIMER_PERIOD), pdTRUE, 0,
         sensor_timer_callback, &sensor_timer_buffer);
