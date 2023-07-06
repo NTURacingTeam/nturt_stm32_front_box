@@ -14,7 +14,6 @@
 // freertos timer info
 #define SENSOR_TIMER_PERIOD 5 //in ms
 #define TIRE_TEMP_PERIOD 250 //in ms
-#define STEER_ANGLE_PERIOD 5 //in ms
 
 /**
  * @brief structure to hold the data that is outputed by this function
@@ -80,5 +79,8 @@ extern TimerHandle_t sensor_timer_handle;
 /*htim7 ISR*/
 //external linkage because we need to call this in HAL_TIMPeriodElapsedCallback in main.c
 void __hall_timer_elapsed(TIM_HandleTypeDef *htim);
+
+//init the freertos objects
+void sensor_init(void);
 
 #endif //_SENSORS_H
