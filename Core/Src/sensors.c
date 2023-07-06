@@ -488,16 +488,16 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
     TickType_t tlast = t0;
     
     //if either of which is not set
-    do {
+    while(~flag_gotten & target) {
         BaseType_t Wait_result = xTaskNotifyWait(0, 0xFFFFFFFFUL, &flag_buf, timeout-(tlast-t0));
         if(Wait_result == pdFALSE) {
-            return pdFALSE;
+            return pdFALSE; 
         }
 
         flag_gotten |= flag_buf;
         *gotten = flag_gotten;
         tlast = xTaskGetTickCount();
-    } while(~flag_gotten & target);
+    } 
 
     //remove the gotten flags if the flags are correctly received
     *gotten &= ~(target);
