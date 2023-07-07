@@ -36,13 +36,19 @@
 #define MAXIMUM_TORQUE_HIGH_GEAR 134.0F
 
 /// @brief Threshold for motor spped when lower, trigger soft start in [RPM].
-#define SOFT_START_SPEED_THRESHOLD 60.0F
+#define SOFT_START_SPEED_THRESHOLD 300.0F
 
 /// @brief Torque slope for soft start [N * m / s].
-#define SOFT_START_TORQUE_SLOPE 10.0F
+#define SOFT_START_TORQUE_SLOPE 30.0F
 
 /// @brief Torque output starting point when triggering soft start [N * m].
-#define SOFT_START_TORQUE_STARTING_POINT 5.0F
+#define SOFT_START_TORQUE_STARTING_POINT 30.0F
+
+/// @brief Torque slope for normal torque output [N * m / s].
+#define NORMAL_TORQUE_SLOPE 60.0F
+
+/// @brief Torque output starting point for normal torque output [N * m].
+#define NORMAL_TORQUE_STARTING_POINT 60.0F
 
 /// @brief Miniumum safe battery voltage in [V].
 #define MINIUMUM_BATTERY_VOLTAGE 200.0F

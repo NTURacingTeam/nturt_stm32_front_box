@@ -145,25 +145,32 @@ void TorqueController_task_code(void* const _self) {
       // calculate torque command
       xSemaphoreTake(pedal.mutex, portMAX_DELAY);
       float torque_command =
-          fmin(pedal.apps1, pedal.apps2) * self->maximum_torque_;
+          fminf(pedal.apps1, pedal.apps2) * self->maximum_torque_;
       xSemaphoreGive(pedal.mutex);
       xSemaphoreTake(can_vcu_hp_rx_mutex, portMAX_DELAY);
       float motor_speed_ =
-          (float)can_vcu_hp_rx.INV_Fast_Info.INV_Fast_Motor_Speed;
+          fabsf((float)can_vcu_hp_rx.INV_Fast_Info.INV_Fast_Motor_Speed);
       xSemaphoreGive(can_vcu_hp_rx_mutex);
+
+      float torque_command_threshold;
       // if trigger soft start
       if (motor_speed_ < SOFT_START_SPEED_THRESHOLD) {
-        double torque_command_threshold = fmin(
-            self->maximum_torque_,
-            fmax(SOFT_START_TORQUE_STARTING_POINT, self->torque_command_last_) +
-                SOFT_START_TORQUE_SLOPE * (float)TORQUE_CONTROLLER_TASK_PERIOD /
-                    1000.0F);
-        self->torque_command_last_ =
-            fmin(torque_command, torque_command_threshold);
+        torque_command_threshold =
+            fminf(self->maximum_torque_,
+                  fmaxf(SOFT_START_TORQUE_STARTING_POINT,
+                        self->torque_command_last_) +
+                      SOFT_START_TORQUE_SLOPE *
+                          (float)TORQUE_CONTROLLER_TASK_PERIOD / 1000.0F);
 
       } else {
-        self->torque_command_last_ = torque_command;
+        torque_command_threshold = fminf(
+            self->maximum_torque_,
+            fmaxf(NORMAL_TORQUE_STARTING_POINT, self->torque_command_last_) +
+                NORMAL_TORQUE_SLOPE * (float)TORQUE_CONTROLLER_TASK_PERIOD /
+                    1000.0F);
       }
+      self->torque_command_last_ =
+          fminf(torque_command, torque_command_threshold);
       inverter_command.VCU_Torque_Command_phys = self->torque_command_last_;
 
       // send inverter command
