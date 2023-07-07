@@ -173,10 +173,8 @@ wheel_speed_data_t wheel_speed_sensor = {
 };
 
 /*task controls*/
-// __dtcmram 
-uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
-// __dtcmram 
-StaticTask_t sensors_data_task_cb;
+ __dtcmram uint32_t sensors_data_task_buffer[SENSOR_DATA_TASK_STACK_SIZE];
+ __dtcmram StaticTask_t sensors_data_task_cb;
 TaskHandle_t sensors_data_task_handle;
 
 /*timer controls*/
@@ -209,6 +207,7 @@ void sensor_timer_callback(TimerHandle_t timer) {
         vTimerSetTimerID(timer, (void*)0);
     }
 }
+
 
 /**
  * @brief handler function for the data acquisition task of the pedal sensors
@@ -250,18 +249,23 @@ void sensor_handler(void* argument) {
    }
    if(init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications)) {
        Error_Handler();
-   }]
+   }
     
     //wait for 500ms after initialization of D6T
     vTaskDelay(pdMS_TO_TICKS(500));
 #endif
 
     /*initialize the pedal sensors' compensation*/
+    //calib the adc
+    HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET_LINEARITY, ADC_SINGLE_ENDED);
+    HAL_ADCEx_Calibration_Start(&hadc3, ADC_CALIB_OFFSET_LINEARITY, ADC_SINGLE_ENDED);
+
     //wait until the pedals are set back to zero
     while(  HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin) != GPIO_PIN_RESET ||
             HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin) != GPIO_PIN_RESET ) {
         vTaskDelay(pdMS_TO_TICKS(3));
     }
+
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
     HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3);
     //wait for both flags to be set
