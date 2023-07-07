@@ -225,6 +225,16 @@ void sensor_handler(void* argument) {
     timer_time_t hall_time_L_last = {0};
     timer_time_t hall_time_R_last = {0};
 
+    //variables that tracks how long have the sensors been in an implausible state
+    struct {
+        struct {
+            uint16_t apps1;
+            uint16_t apps2;
+            uint16_t bse;
+        } out_of_bounds;
+        uint16_t apps_disagree;
+    } pedal_err_count = {0};
+
     //TODO: handle every return status of FreeRTOS and HAL API
     (void)argument;
     //variable to store the pending flags that is sent from xTaskNotify
@@ -326,7 +336,6 @@ void sensor_handler(void* argument) {
 
         
             //TODO: another error handler for implausibility
-            //TODO: how to use errorhandler API
             float apps1_filtered, apps2_filtered, bse_filtered;
             MovingAverageFilter_update(&moving_average_filter[0], APPS1_transfer_function(adc_dma_buffer.apps1, apps1_compensation), &apps1_filtered);
             MovingAverageFilter_update(&moving_average_filter[1], APPS2_transfer_function(adc_dma_buffer.apps2, apps2_compensation), &apps2_filtered);
@@ -340,7 +349,27 @@ void sensor_handler(void* argument) {
             const uint32_t isAppsErrSet = prevErr & ERROR_CODE_APPS_IMPLAUSIBILITY;
             const uint32_t isBseErrSet = prevErr & ERROR_CODE_BSE_IMPLAUSIBILITY;
 
-            if( apps1 > 1.0 || apps1 < 0.0 || apps2 > 1.0 || apps2 < 0.0 || apps1-apps2 > 0.1 || apps2-apps1 > 0.1 ) {
+            if( apps1 > 1.0 || apps1 < 0.0 ) {
+                if(pedal_err_count.out_of_bounds.apps1 <= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
+                    pedal_err_count.out_of_bounds.apps1++;
+                }
+            } else pedal_err_count.out_of_bounds.apps1 = 0;
+
+            if ( apps2 > 1.0 || apps2 < 0.0 ) {
+                if(pedal_err_count.out_of_bounds.apps2 <= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
+                    pedal_err_count.out_of_bounds.apps2++;
+                }
+            } else pedal_err_count.out_of_bounds.apps2 = 0;
+
+            if ( apps1-apps2 > 0.1 || apps2-apps1 > 0.1 ) {
+                if(pedal_err_count.apps_disagree <= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
+                    pedal_err_count.apps_disagree++;
+                }
+            } else pedal_err_count.apps_disagree = 0;
+
+            if(pedal_err_count.out_of_bounds.apps1 >= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD 
+             || pedal_err_count.out_of_bounds.apps2 >= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD
+             || pedal_err_count.apps_disagree >= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
                 if(!isAppsErrSet) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET);
             }
             else if(isAppsErrSet){
@@ -348,6 +377,12 @@ void sensor_handler(void* argument) {
             }
             
             if(bse > 1.0 || bse < 0.0) {
+                if(pedal_err_count.out_of_bounds.bse <= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
+                    pedal_err_count.out_of_bounds.bse++;
+                }
+            } else pedal_err_count.out_of_bounds.bse = 0;
+
+            if(pedal_err_count.out_of_bounds.bse >= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
                 if(!isBseErrSet) ErrorHandler_write_error(&error_handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
             }
             else if(isBseErrSet) {
