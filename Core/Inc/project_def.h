@@ -21,6 +21,7 @@
 
 // fsae rule
 #define PEDAL_PLAUSIBILITY_CHECK_APPS_THRESHOLD 0.25F
+#define PEDAL_PLAUSIBILITY_CHECK_RESET_APPS_THRESHOLD 0.05F
 
 // vehicle parameter
 /// @brief Moror forward direction bit for sending command to inverter.

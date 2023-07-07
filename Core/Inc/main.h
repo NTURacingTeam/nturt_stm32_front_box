@@ -90,6 +90,7 @@ void Error_Handler(void);
 #define MICRO_BSE_GPIO_Port GPIOF
 #define HALL_L_Pin GPIO_PIN_3
 #define HALL_L_GPIO_Port GPIOF
+#define HALL_L_EXTI_IRQn EXTI3_IRQn
 #define SUSPENSION_L_Pin GPIO_PIN_6
 #define SUSPENSION_L_GPIO_Port GPIOF
 #define BSE_Pin GPIO_PIN_10
@@ -150,6 +151,7 @@ void Error_Handler(void);
 #define LED_CAN_RX_GPIO_Port GPIOG
 #define USB_FS_OVCR_Pin GPIO_PIN_7
 #define USB_FS_OVCR_GPIO_Port GPIOG
+#define USB_FS_OVCR_EXTI_IRQn EXTI9_5_IRQn
 #define HALL_R_Pin GPIO_PIN_8
 #define HALL_R_GPIO_Port GPIOC
 #define LED_WARN_Pin GPIO_PIN_9

@@ -352,8 +352,9 @@ void FTrn_FRONT_SENSOR_1_nturt_can_config(FRONT_SENSOR_1_t* m) {
   m->FRONT_SENSOR_Accelerator_Micro = accelerator_micro;
   m->FRONT_SENSOR_Brake_Micro = brake_micro;
 
-  // TODO: remove this
-  m->FRONT_SENSOR_Steer_Angle = 50;
+  xSemaphoreTake(steer_angle_sensor.mutex, portMAX_DELAY);
+  m->FRONT_SENSOR_Steer_Angle = (int)steer_angle_sensor.steering_angle;
+  xSemaphoreGive(steer_angle_sensor.mutex);
 
   xSemaphoreTake(pedal.mutex, portMAX_DELAY);
   m->FRONT_SENSOR_Accelerator_1_phys = pedal.apps1;

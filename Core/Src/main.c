@@ -1007,11 +1007,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(BUTTON_BUILTIN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : MICRO_BSE_Pin HALL_L_Pin */
-  GPIO_InitStruct.Pin = MICRO_BSE_Pin|HALL_L_Pin;
+  /*Configure GPIO pin : MICRO_BSE_Pin */
+  GPIO_InitStruct.Pin = MICRO_BSE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+  HAL_GPIO_Init(MICRO_BSE_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : HALL_L_Pin */
+  GPIO_InitStruct.Pin = HALL_L_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(HALL_L_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED_RTD_Pin */
   GPIO_InitStruct.Pin = LED_RTD_Pin;
@@ -1092,6 +1098,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG1_HS;
   HAL_GPIO_Init(USB_FS_ID_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */

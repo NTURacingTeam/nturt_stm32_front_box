@@ -165,7 +165,7 @@ void StatusController_task_code(void* const _self) {
         self->rtd_condition_ &= ~RTD_CON_PEDAL_PLAUSIBILITY;
       }
     } else {
-      if (apps < PEDAL_PLAUSIBILITY_CHECK_APPS_THRESHOLD) {
+      if (apps < PEDAL_PLAUSIBILITY_CHECK_RESET_APPS_THRESHOLD) {
         ErrorHandler_write_error(&error_handler,
                                  ERROR_CODE_PEDAL_IMPLAUSIBILITY, ERROR_CLEAR);
         self->rtd_condition_ |= RTD_CON_PEDAL_PLAUSIBILITY;
@@ -193,9 +193,8 @@ void StatusController_task_code(void* const _self) {
 
     // inverter voltage
     xSemaphoreTake(can_vcu_hp_rx_mutex, portMAX_DELAY);
-    // if (can_vcu_hp_rx.INV_Fast_Info.INV_Fast_DC_Bus_Voltage_phys >=
-    //     MINIUMUM_BATTERY_VOLTAGE) {
-    if (true) {
+    if (can_vcu_hp_rx.INV_Fast_Info.INV_Fast_DC_Bus_Voltage_phys >=
+        MINIUMUM_BATTERY_VOLTAGE) {
       self->rtd_condition_ |= RTD_CON_INVERTER_VOLTAGE;
     } else {
       self->rtd_condition_ &= ~RTD_CON_INVERTER_VOLTAGE;
