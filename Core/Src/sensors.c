@@ -183,14 +183,8 @@ TaskHandle_t sensors_data_task_handle;
 __dtcmram StaticTimer_t sensor_timer_buffer;
 TimerHandle_t sensor_timer_handle;
 
-void filter_init() {
-  for (int i = 0; i < NUM_FILTER; i++) {
-    MovingAverageFilter_ctor(&moving_average_filter[i], moving_average_buffer[i],
-                             MOVING_AVERAGE_FILTER_MOVING_AVERAGE_SIZE, NULL);
-  }
-}
-
 //private functions
+static void filter_init();
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
 static uint8_t init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
 static void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, timer_time_t* diff);
@@ -238,17 +232,19 @@ void sensor_handler(void* argument) {
 
     /*initialize D6T sensors*/
     //first wait for 20ms for the D6T sensors to boot up
+#ifdef USE_D6T
     vTaskDelay(pdMS_TO_TICKS(20));
 
-//    if(init_D6T(&hi2c5, &d6t_dma_buffer_R, FLAG_D6T_STARTUP, &pending_notifications)) {
-//        Error_Handler();
-//    }
-//    if(init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications)) {
-//        Error_Handler();
-//    }]
+   if(init_D6T(&hi2c5, &d6t_dma_buffer_R, FLAG_D6T_STARTUP, &pending_notifications)) {
+       Error_Handler();
+   }
+   if(init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications)) {
+       Error_Handler();
+   }]
     
     //wait for 500ms after initialization of D6T
     vTaskDelay(pdMS_TO_TICKS(500));
+#endif
 
     /*initialize the pedal sensors' compensation*/
     //wait until the pedals are set back to zero
@@ -400,23 +396,25 @@ void sensor_handler(void* argument) {
         }
         if(pending_notifications & FLAG_READ_TIRE_TEMP) {
             pending_notifications &= ~FLAG_READ_TIRE_TEMP;
+#ifdef USE_D6T
             //read the values from both sensors
-            // HAL_I2C_Mem_Read_DMA(
-            //     &hi2c5,
-            //     d6t_dma_buffer_R.addr_write, 
-            //     d6t_dma_buffer_R.command, 
-            //     1, 
-            //     &(d6t_dma_buffer_R.PTAT.low), 
-            //     sizeof(d6t_dma_buffer_R.PTAT)+sizeof(d6t_dma_buffer_R.temp)+sizeof(d6t_dma_buffer_R.PEC));
-            // HAL_I2C_Mem_Read_DMA(
-            //     &hi2c1, 
-            //     d6t_dma_buffer_L.addr_write, 
-            //     d6t_dma_buffer_L.command, 
-            //     1, 
-            //     &(d6t_dma_buffer_L.PTAT.low), 
-            //     sizeof(d6t_dma_buffer_L.PTAT)+sizeof(d6t_dma_buffer_L.temp)+sizeof(d6t_dma_buffer_L.PEC));
-            //wait for the DMA to finish, while we can do other stuff in the mean time
+            HAL_I2C_Mem_Read_DMA(
+                &hi2c5,
+                d6t_dma_buffer_R.addr_write, 
+                d6t_dma_buffer_R.command, 
+                1, 
+                &(d6t_dma_buffer_R.PTAT.low), 
+                sizeof(d6t_dma_buffer_R.PTAT)+sizeof(d6t_dma_buffer_R.temp)+sizeof(d6t_dma_buffer_R.PEC));
+            HAL_I2C_Mem_Read_DMA(
+                &hi2c1, 
+                d6t_dma_buffer_L.addr_write, 
+                d6t_dma_buffer_L.command, 
+                1, 
+                &(d6t_dma_buffer_L.PTAT.low), 
+                sizeof(d6t_dma_buffer_L.PTAT)+sizeof(d6t_dma_buffer_L.temp)+sizeof(d6t_dma_buffer_L.PEC));
+            wait for the DMA to finish, while we can do other stuff in the mean time
             //TODO: setup timeout exception and deal with error case where the stuff did not finish
+#endif
         }
         if(pending_notifications & FLAG_I2C1_FINISH) {
             pending_notifications &= ~FLAG_I2C1_FINISH; //clear flags
@@ -658,5 +656,13 @@ void sensor_init(void) {
     tire_temp_sensor.mutex = xSemaphoreCreateMutex();
     steer_angle_sensor.mutex = xSemaphoreCreateMutex();
     wheel_speed_sensor.mutex = xSemaphoreCreateMutex();
+    filter_init();
     return;
+}
+
+static void filter_init() {
+  for (int i = 0; i < NUM_FILTER; i++) {
+    MovingAverageFilter_ctor(&moving_average_filter[i], moving_average_buffer[i],
+                             MOVING_AVERAGE_FILTER_MOVING_AVERAGE_SIZE, NULL);
+  }
 }

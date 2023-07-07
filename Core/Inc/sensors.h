@@ -48,8 +48,6 @@ typedef struct {
 
 extern tire_temp_data_t tire_temp_sensor;
 
-void filter_init();
-
 typedef struct {
     float steering_angle;
     SemaphoreHandle_t mutex;

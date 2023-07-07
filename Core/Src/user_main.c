@@ -93,7 +93,6 @@ void user_init() {
    TorqueController_ctor(&torque_controller);
    TorqueController_start(&torque_controller);
 
-  filter_init();
   sensor_init();
 #endif  // TEST
 
