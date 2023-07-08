@@ -714,7 +714,7 @@ static void MX_IWDG1_Init(void)
   /* USER CODE END IWDG1_Init 0 */
 
   /* USER CODE BEGIN IWDG1_Init 1 */
-#ifndef DEBUG
+#ifdef USE_WATCHDOG
   /* USER CODE END IWDG1_Init 1 */
   hiwdg1.Instance = IWDG1;
   hiwdg1.Init.Prescaler = IWDG_PRESCALER_4;
@@ -725,7 +725,7 @@ static void MX_IWDG1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN IWDG1_Init 2 */
-#endif  // DEBUG
+#endif  // USE_WATCHDOG
   /* USER CODE END IWDG1_Init 2 */
 
 }
@@ -1125,9 +1125,9 @@ __weak void start_feed_dog_task(void *argument)
 {
   /* USER CODE BEGIN 5 */
   while (1) {
-#ifndef DEBUG
+#ifdef USE_WATCHDOG
     HAL_IWDG_Refresh(&hiwdg1);
-#endif  // DEBUG
+#endif  // USE_WATCHDOG
     osDelay(100);
   }
   /* USER CODE END 5 */

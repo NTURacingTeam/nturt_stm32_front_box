@@ -12,29 +12,15 @@
 #include "semphr.h"
 #include "task.h"
 
+// can_config include
+#include "nturt_can_config.h"
+
 // project include
 #include "front_box_can.h"
 #include "project_def.h"
 #include "sensors.h"
 #include "status_controller.h"
 #include "user_main.h"
-
-/* Exported variable ---------------------------------------------------------*/
-
-/* Static variable -----------------------------------------------------------*/
-static INV_Command_Message_t inverter_command = {
-    .VCU_Speed_Command = 0,
-    .VCU_Inverter_Enable = 1,
-    .VCU_Inverter_Discharge = 0,
-    .VCU_Speed_Mode_Enable = 0,
-    .VCU_Torque_Limit_Command_phys = 0.0F,
-};
-
-static TaskHandle_t blink_gear_light_task_handle = NULL;
-
-static StaticTask_t blink_gear_light_task_cb;
-
-static uint32_t blink_gear_light_task_stack[configMINIMAL_STACK_SIZE];
 
 /* Static function prototype -------------------------------------------------*/
 static void blink_gear_light_task_code(void* argument);
@@ -69,6 +55,12 @@ void TorqueController_ctor(TorqueController* const self) {
   // initialize member variable
   self->torque_command_last_ = 0.0F;
 
+  self->inverter_command_.VCU_Speed_Command = 0;
+  self->inverter_command_.VCU_Inverter_Enable = 1;
+  self->inverter_command_.VCU_Inverter_Discharge = 0;
+  self->inverter_command_.VCU_Speed_Mode_Enable = 0;
+  self->inverter_command_.VCU_Torque_Limit_Command_phys = 0.0F;
+
   // register button callback
   ButtonMonitor_register_callback(&button_monitor, GEAR_HIGH,
                                   TorqueController_gear_high_button_callback,
@@ -99,17 +91,17 @@ void TorqueController_gear_reverse_button_callback(void* const _self,
   StatusController_reset_status(&status_controller);
 
   if (state == GPIO_PIN_SET) {
-    blink_gear_light_task_handle = xTaskCreateStatic(
+    self->blink_gear_light_task_handle_ = xTaskCreateStatic(
         blink_gear_light_task_code, "blink_gear_light",
         configMINIMAL_STACK_SIZE, NULL, TaskPriorityLowest,
-        blink_gear_light_task_stack, &blink_gear_light_task_cb);
-    inverter_command.VCU_Direction_Command = MOTOR_REVERSE;
+        self->blink_gear_light_task_stack_, &self->blink_gear_light_task_cb_);
+    self->inverter_command_.VCU_Direction_Command = MOTOR_REVERSE;
   } else {
-    if (blink_gear_light_task_handle == NULL ||
-        eTaskGetState(blink_gear_light_task_handle) != eDeleted) {
-      vTaskDelete(blink_gear_light_task_handle);
+    if (self->blink_gear_light_task_handle_ == NULL ||
+        eTaskGetState(self->blink_gear_light_task_handle_) != eDeleted) {
+      vTaskDelete(self->blink_gear_light_task_handle_);
     }
-    inverter_command.VCU_Direction_Command = MOTOR_FORWARD;
+    self->inverter_command_.VCU_Direction_Command = MOTOR_FORWARD;
   }
 }
 
@@ -127,13 +119,13 @@ void TorqueController_task_code(void* const _self) {
     self->maximum_torque_ = MAXIMUM_TORQUE_NORMAL_GEAR;
     ButtonMonitor_read_state(&button_monitor, GEAR_REVERSE, &gear_state);
     if (gear_state == GPIO_PIN_SET) {
-      blink_gear_light_task_handle = xTaskCreateStatic(
+      self->blink_gear_light_task_handle_ = xTaskCreateStatic(
           blink_gear_light_task_code, "blink_gear_light",
           configMINIMAL_STACK_SIZE, NULL, TaskPriorityLowest,
-          blink_gear_light_task_stack, &blink_gear_light_task_cb);
-      inverter_command.VCU_Direction_Command = MOTOR_REVERSE;
+          self->blink_gear_light_task_stack_, &self->blink_gear_light_task_cb_);
+      self->inverter_command_.VCU_Direction_Command = MOTOR_REVERSE;
     } else {
-      inverter_command.VCU_Direction_Command = MOTOR_FORWARD;
+      self->inverter_command_.VCU_Direction_Command = MOTOR_FORWARD;
     }
   }
 
@@ -171,11 +163,12 @@ void TorqueController_task_code(void* const _self) {
       }
       self->torque_command_last_ =
           fminf(torque_command, torque_command_threshold);
-      inverter_command.VCU_Torque_Command_phys = self->torque_command_last_;
+      self->inverter_command_.VCU_Torque_Command_phys =
+          self->torque_command_last_;
 
       // send inverter command
       xSemaphoreTake(can_vcu_tx_mutex, portMAX_DELAY);
-      can_vcu_tx.INV_Command_Message = inverter_command;
+      can_vcu_tx.INV_Command_Message = self->inverter_command_;
       xSemaphoreGive(can_vcu_tx_mutex);
 
     } else {

@@ -20,6 +20,9 @@
 // stm32_module incude
 #include "stm32_module/stm32_module.h"
 
+// can_config include
+#include "nturt_can_config.h"
+
 // project include
 #include "project_def.h"
 
@@ -46,8 +49,20 @@ typedef struct torque_controller {
   /// @brief Last torque command [N * m].
   float torque_command_last_;
 
+  /// @brief Inverter command message.
+  INV_Command_Message_t inverter_command_;
+
   /// @brief Task stack buffer.
   StackType_t task_stack_[TORQUE_CONTROLLER_TASK_STACK_SIZE];
+
+  /// @brief Task handle for blink_gear_light_task.
+  TaskHandle_t blink_gear_light_task_handle_;
+
+  /// @brief Task control block for blink_gear_light_task.
+  StaticTask_t blink_gear_light_task_cb_;
+
+  /// @brief Task stack buffer for link_gear_light_task.
+  StackType_t blink_gear_light_task_stack_[configMINIMAL_STACK_SIZE];
 } TorqueController;
 
 /* constructor ---------------------------------------------------------------*/

@@ -19,6 +19,7 @@
 #include "semphr.h"
 
 // can_config include
+#include "nturt_can_config.h"
 #include "nturt_can_config_front_sensor-binutil.h"
 #include "nturt_can_config_vcu-binutil.h"
 #include "nturt_can_config_vcu_hp-binutil.h"

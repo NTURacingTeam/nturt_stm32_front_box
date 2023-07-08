@@ -51,6 +51,7 @@
 #include "sensors.h"
 
 #define USE_HALL_SENSOR
+// #define USE_D6T
 
 #define MUTEX_TIMEOUT 0x02
 #define ADC_TIMEOUT 0x02
@@ -186,7 +187,9 @@ TimerHandle_t sensor_timer_handle;
 //private functions
 static void filter_init();
 static BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* const gotten);
+#ifdef USE_D6T
 static uint8_t init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buffer_t* rawData, uint32_t txThreadFlag, uint32_t* otherflags);
+#endif //  USE_D6T
 static void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, timer_time_t* diff);
 static uint8_t ADC_request_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, uint8_t count);
 static uint8_t ADC_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, uint8_t count, uint32_t* notifications);
@@ -453,7 +456,7 @@ void sensor_handler(void* argument) {
                 1, 
                 &(d6t_dma_buffer_L.PTAT.low), 
                 sizeof(d6t_dma_buffer_L.PTAT)+sizeof(d6t_dma_buffer_L.temp)+sizeof(d6t_dma_buffer_L.PEC));
-            wait for the DMA to finish, while we can do other stuff in the mean time
+            // wait for the DMA to finish, while we can do other stuff in the mean time
             //TODO: setup timeout exception and deal with error case where the stuff did not finish
 #endif
         }
@@ -543,6 +546,7 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
     return pdTRUE;
 }
 
+#ifdef USE_D6T
 /**
  * @brief this function initializes the payload data of the i2c addresses and the D6T sensors themselves
  * 
@@ -582,6 +586,7 @@ static uint8_t init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buff
     }
     return 0;
 }
+#endif //  USE_D6T
 
 /**
  * @brief this function calculates the difference between last and now, and updates the "now" time to "last"

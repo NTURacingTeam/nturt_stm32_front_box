@@ -20,16 +20,6 @@
 
 /* Exported variable ---------------------------------------------------------*/
 
-/* Static variable -----------------------------------------------------------*/
-static TaskHandle_t blink_rtd_light_task_handle = NULL;
-static TaskHandle_t play_rtd_sound_task_handle = NULL;
-
-static StaticTask_t blink_rtd_light_task_cb;
-static StaticTask_t play_rtd_sound_task_cb;
-
-static uint32_t blink_rtd_light_task_stack[configMINIMAL_STACK_SIZE];
-static uint32_t play_rtd_sound_task_stack[configMINIMAL_STACK_SIZE];
-
 /* Static function prototype -------------------------------------------------*/
 static void blink_rtd_light_task_code(void* argument);
 
@@ -76,6 +66,9 @@ void StatusController_ctor(StatusController* const self) {
   // set rtd condition controlled by error handler to true
   self->rtd_condition_ = RTD_CON_APPS | RTD_CON_BSE | RTD_CON_CAN_TX |
                          RTD_CON_CAN_RX_CRITICAL | RTD_CON_PEDAL_PLAUSIBILITY;
+
+  self->blink_rtd_light_task_handle_ = NULL;
+  self->play_rtd_sound_task_handle_ = NULL;
 }
 
 /* member function -----------------------------------------------------------*/
@@ -89,9 +82,9 @@ ModuleRet StatusController_get_status(StatusController* const self,
 ModuleRet StatusController_reset_status(StatusController* const self) {
   switch (self->status_) {
     case StatusRTD:
-      if (play_rtd_sound_task_handle != NULL &&
-          eTaskGetState(play_rtd_sound_task_handle) != eDeleted) {
-        vTaskDelete(play_rtd_sound_task_handle);
+      if (self->play_rtd_sound_task_handle_ != NULL &&
+          eTaskGetState(self->play_rtd_sound_task_handle_) != eDeleted) {
+        vTaskDelete(self->play_rtd_sound_task_handle_);
       }
       self->status_ = StatusReady;
       break;
@@ -112,7 +105,8 @@ ModuleRet StatusController_reset_status(StatusController* const self) {
 void StatusController_error_handler(void* const _self, uint32_t error_code) {
   StatusController* const self = (StatusController*)_self;
 
-  if (error_code & ERROR_CODE_APPS_IMPLAUSIBILITY) {
+  if (error_code &
+      (ERROR_CODE_APPS_LOW | ERROR_CODE_APPS_HIGH | ERROR_CODE_APPS_DIVERGE)) {
     if (error_code & ERROR_SET) {
       self->rtd_condition_ &= ~RTD_CON_APPS;
     } else {
@@ -120,7 +114,7 @@ void StatusController_error_handler(void* const _self, uint32_t error_code) {
     }
   }
 
-  if (error_code & ERROR_CODE_BSE_IMPLAUSIBILITY) {
+  if (error_code & (ERROR_CODE_BSE_LOW | ERROR_CODE_BSE_HIGH)) {
     if (error_code & ERROR_SET) {
       self->rtd_condition_ &= ~RTD_CON_BSE;
     } else {
@@ -219,36 +213,39 @@ void StatusController_task_code(void* const _self) {
             ButtonMonitor_read_state(&button_monitor, BUTTON_RTD,
                                      &button_state);
             if (button_state == GPIO_PIN_SET) {
-              play_rtd_sound_task_handle = xTaskCreateStatic(
+              self->play_rtd_sound_task_handle_ = xTaskCreateStatic(
                   play_rtd_sound_task_code, "play_rtd_sound",
                   configMINIMAL_STACK_SIZE, NULL, TaskPriorityLowest,
-                  play_rtd_sound_task_stack, &play_rtd_sound_task_cb);
+                  self->play_rtd_sound_task_stack_,
+                  &self->play_rtd_sound_task_cb_);
               self->status_ = StatusRTD;
 
             } else {
-              if (blink_rtd_light_task_handle != NULL &&
-                  eTaskGetState(blink_rtd_light_task_handle) != eDeleted) {
-                vTaskDelete(blink_rtd_light_task_handle);
+              if (self->blink_rtd_light_task_handle_ != NULL &&
+                  eTaskGetState(self->blink_rtd_light_task_handle_) !=
+                      eDeleted) {
+                vTaskDelete(self->blink_rtd_light_task_handle_);
               }
               LedController_turn_on(&led_controller, LED_RTD);
             }
 
           } else {
-            if (blink_rtd_light_task_handle == NULL ||
-                eTaskGetState(blink_rtd_light_task_handle) == eDeleted) {
+            if (self->blink_rtd_light_task_handle_ == NULL ||
+                eTaskGetState(self->blink_rtd_light_task_handle_) == eDeleted) {
               LedController_turn_off(&led_controller, LED_RTD);
-              blink_rtd_light_task_handle = xTaskCreateStatic(
+              self->blink_rtd_light_task_handle_ = xTaskCreateStatic(
                   blink_rtd_light_task_code, "blink_rtd_light",
                   configMINIMAL_STACK_SIZE, NULL, TaskPriorityLowest,
-                  blink_rtd_light_task_stack, &blink_rtd_light_task_cb);
+                  self->blink_rtd_light_task_stack_,
+                  &self->blink_rtd_light_task_cb_);
             }
           }
 
         } else {
           self->status_ = StatusError;
-          if (blink_rtd_light_task_handle != NULL &&
-              eTaskGetState(blink_rtd_light_task_handle) != eDeleted) {
-            vTaskDelete(blink_rtd_light_task_handle);
+          if (self->blink_rtd_light_task_handle_ != NULL &&
+              eTaskGetState(self->blink_rtd_light_task_handle_) != eDeleted) {
+            vTaskDelete(self->blink_rtd_light_task_handle_);
           }
           LedController_turn_off(&led_controller, LED_RTD);
           LedController_turn_on(&led_controller, LED_VCU);
@@ -256,8 +253,8 @@ void StatusController_task_code(void* const _self) {
         break;
 
       case StatusRTD:
-        if (play_rtd_sound_task_handle == NULL ||
-            eTaskGetState(play_rtd_sound_task_handle) == eDeleted) {
+        if (self->play_rtd_sound_task_handle_ == NULL ||
+            eTaskGetState(self->play_rtd_sound_task_handle_) == eDeleted) {
           LedController_turn_off(&led_controller, LED_RTD);
           self->status_ = StatusRunning;
         }

@@ -78,6 +78,24 @@ typedef struct status_controller {
 
   /// @brief Error callback control block.
   struct error_callback_cb error_callback_cb_;
+
+  /// @brief Task handle for blink_rtd_light_task.
+  TaskHandle_t blink_rtd_light_task_handle_;
+
+  /// @brief Task handle for play_rtd_sound_task.
+  TaskHandle_t play_rtd_sound_task_handle_;
+
+  /// @brief Task control block for blink_rtd_light_task.
+  StaticTask_t blink_rtd_light_task_cb_;
+
+  /// @brief Task control block for play_rtd_sound_task.
+  StaticTask_t play_rtd_sound_task_cb_;
+
+  /// @brief Task stack buffer for blink_rtd_light_task.
+  StackType_t blink_rtd_light_task_stack_[configMINIMAL_STACK_SIZE];
+
+  /// @brief Task stack buffer for play_rtd_sound_task.
+  StackType_t play_rtd_sound_task_stack_[configMINIMAL_STACK_SIZE];
 } StatusController;
 
 /* constructor ---------------------------------------------------------------*/

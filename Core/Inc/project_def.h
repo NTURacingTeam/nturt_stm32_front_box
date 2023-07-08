@@ -12,6 +12,8 @@
 // #define LED_TEST
 // #define BUTTON_TEST
 
+#define USE_WATCHDOG
+
 #if defined(LED_TEST) || defined(BUTTON_TEST)
 #define TEST
 #endif
