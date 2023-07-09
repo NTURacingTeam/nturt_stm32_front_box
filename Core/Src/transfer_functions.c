@@ -2,7 +2,7 @@
 #include <stdint.h>
 // #include "transfer_functions.h"
 
-#define START_TO_OUTPUT_MARGIN 0.007
+#define START_TO_OUTPUT_MARGIN 0.01
 #define OUT_OF_BOUNDS_MARGIN 0.05 //TODO: where do we put these fuzzy bound constants
 
 float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge) {

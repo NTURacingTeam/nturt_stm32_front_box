@@ -193,6 +193,7 @@ static uint8_t init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buff
 static void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, timer_time_t* diff);
 static uint8_t ADC_request_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, uint8_t count);
 static uint8_t ADC_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, uint8_t count, uint32_t* notifications);
+static void Error_report(uint32_t errFlag, uint16_t* count, bool err);
 
 void sensor_timer_callback(TimerHandle_t timer) {
     xTaskNotify(sensors_data_task_handle, FLAG_READ_SUS_PEDAL, eSetBits);
@@ -232,10 +233,17 @@ void sensor_handler(void* argument) {
     //variables that tracks how long have the sensors been in an implausible state
     struct {
         struct {
-            uint16_t apps1;
-            uint16_t apps2;
-            uint16_t bse;
-        } out_of_bounds;
+            uint16_t high;
+            uint16_t low;
+        } apps1;
+        struct {
+            uint16_t high;
+            uint16_t low;
+        } apps2;
+        struct {
+            uint16_t high;
+            uint16_t low;
+        } bse;
         uint16_t apps_disagree;
     } pedal_err_count = {0};
 
@@ -303,13 +311,13 @@ void sensor_handler(void* argument) {
 
             if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4) != HAL_OK) {
                 if(ADC_request_retry(&hadc1, &adc_dma_buffer.apps1, 4, 3)) {
-                    ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY | ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
+                    ErrorHandler_write_error(&error_handler, ERROR_CODE_ADC, ERROR_SET);
                     break;
                 }
             }
             if(HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3) != HAL_OK) {
                 if(ADC_request_retry(&hadc3, &adc_dma_buffer.apps2, 3, 3)) {
-                    ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY | ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
+                    ErrorHandler_write_error(&error_handler, ERROR_CODE_ADC, ERROR_SET);
                     break;
                 }
             }
@@ -330,14 +338,14 @@ void sensor_handler(void* argument) {
                 if(!is_ADC3_done) {
                     if(ADC_retry(&hadc3, &adc_dma_buffer.apps2, 3, 3, &pending_notifications)) {
                         pending_notifications &= ~(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH);
-                        ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY | ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
+                        ErrorHandler_write_error(&error_handler, ERROR_CODE_ADC, ERROR_SET);
                         break;
                     }
                 }
                 if(!is_ADC1_done) {
                     if(ADC_retry(&hadc1, &adc_dma_buffer.apps1, 4, 3, &pending_notifications)) {
                         pending_notifications &= ~(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH);
-                        ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY | ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
+                        ErrorHandler_write_error(&error_handler, ERROR_CODE_ADC, ERROR_SET);
                         break;
                     }
                 }
@@ -358,45 +366,13 @@ void sensor_handler(void* argument) {
             const uint32_t isAppsErrSet = prevErr & ERROR_CODE_APPS_IMPLAUSIBILITY;
             const uint32_t isBseErrSet = prevErr & ERROR_CODE_BSE_IMPLAUSIBILITY;
 
-            if( apps1 > 1.0 || apps1 < 0.0 ) {
-                if(pedal_err_count.out_of_bounds.apps1 <= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
-                    pedal_err_count.out_of_bounds.apps1++;
-                }
-            } else pedal_err_count.out_of_bounds.apps1 = 0;
-
-            if ( apps2 > 1.0 || apps2 < 0.0 ) {
-                if(pedal_err_count.out_of_bounds.apps2 <= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
-                    pedal_err_count.out_of_bounds.apps2++;
-                }
-            } else pedal_err_count.out_of_bounds.apps2 = 0;
-
-            if ( apps1-apps2 > 0.1 || apps2-apps1 > 0.1 ) {
-                if(pedal_err_count.apps_disagree <= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
-                    pedal_err_count.apps_disagree++;
-                }
-            } else pedal_err_count.apps_disagree = 0;
-
-            if(pedal_err_count.out_of_bounds.apps1 >= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD 
-             || pedal_err_count.out_of_bounds.apps2 >= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD
-             || pedal_err_count.apps_disagree >= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
-                if(!isAppsErrSet) ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_SET);
-            }
-            else if(isAppsErrSet){
-                ErrorHandler_write_error(&error_handler, ERROR_CODE_APPS_IMPLAUSIBILITY, ERROR_CLEAR);
-            }
-            
-            if(bse > 1.0 || bse < 0.0) {
-                if(pedal_err_count.out_of_bounds.bse <= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
-                    pedal_err_count.out_of_bounds.bse++;
-                }
-            } else pedal_err_count.out_of_bounds.bse = 0;
-
-            if(pedal_err_count.out_of_bounds.bse >= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
-                if(!isBseErrSet) ErrorHandler_write_error(&error_handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_SET);
-            }
-            else if(isBseErrSet) {
-                ErrorHandler_write_error(&error_handler, ERROR_CODE_BSE_IMPLAUSIBILITY, ERROR_CLEAR);
-            }
+            Error_report(ERROR_CODE_APPS1_HIGH, &pedal_err_count.apps1.high, apps1 > 1.0 ? true : false);
+            Error_report(ERROR_CODE_APPS1_LOW, &pedal_err_count.apps1.low, apps1 < 0.0 ? true : false);
+            Error_report(ERROR_CODE_APPS2_HIGH, &pedal_err_count.apps2.high, apps2 > 1.0 ? true : false);
+            Error_report(ERROR_CODE_APPS2_LOW, &pedal_err_count.apps2.low, apps2 < 0.0 ? true : false);
+            Error_report(ERROR_CODE_APPS_DIVERGE, &pedal_err_count.apps_disagree, apps1-apps2 > 0.1 || apps2-apps1 > 0.1 ? true : false);
+            Error_report(ERROR_CODE_BSE_HIGH, &pedal_err_count.bse.high, bse > 1.0 ? true : false);
+            Error_report(ERROR_CODE_BSE_LOW, &pedal_err_count.bse.low, bse < 0.0 ? true : false);
             
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 pedal.apps1 = apps1;
@@ -544,6 +520,24 @@ BaseType_t wait_for_notif_flags(uint32_t target, uint32_t timeout, uint32_t* con
     //remove the gotten flags if the flags are correctly received
     *gotten &= ~(target);
     return pdTRUE;
+}
+
+static void Error_report(uint32_t errFlag, uint16_t* count, bool err) {
+    uint32_t prevErr = 0;
+    ErrorHandler_get_error(&error_handler, &prevErr);
+    const uint32_t isErrSet = prevErr & errFlag;
+    if(err) {
+        if(*count <= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
+            *count++;
+        }
+    } else *count = 0;
+
+    if(*count >= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
+        if(!isErrSet) ErrorHandler_write_error(&error_handler, errFlag, ERROR_SET);
+    }
+    else if(isErrSet) {
+        ErrorHandler_write_error(&error_handler, errFlag, ERROR_CLEAR);
+    }
 }
 
 #ifdef USE_D6T
