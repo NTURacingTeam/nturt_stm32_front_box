@@ -361,11 +361,6 @@ void sensor_handler(void* argument) {
             const float apps2 = fuzzy_edge_remover(apps2_filtered, 1.0, 0.0);
             const float bse = fuzzy_edge_remover(bse_filtered, 1.0, 0.0);
 
-            uint32_t prevErr = 0;
-            ErrorHandler_get_error(&error_handler, &prevErr);
-            const uint32_t isAppsErrSet = prevErr & ERROR_CODE_APPS_IMPLAUSIBILITY;
-            const uint32_t isBseErrSet = prevErr & ERROR_CODE_BSE_IMPLAUSIBILITY;
-
             Error_report(ERROR_CODE_APPS1_HIGH, &pedal_err_count.apps1.high, apps1 > 1.0 ? true : false);
             Error_report(ERROR_CODE_APPS1_LOW, &pedal_err_count.apps1.low, apps1 < 0.0 ? true : false);
             Error_report(ERROR_CODE_APPS2_HIGH, &pedal_err_count.apps2.high, apps2 > 1.0 ? true : false);
@@ -528,7 +523,7 @@ static void Error_report(uint32_t errFlag, uint16_t* count, bool err) {
     const uint32_t isErrSet = prevErr & errFlag;
     if(err) {
         if(*count <= IMPLAUSIBILTITY_PERIOD/SENSOR_TIMER_PERIOD) {
-            *count++;
+            (*count)++;
         }
     } else *count = 0;
 
