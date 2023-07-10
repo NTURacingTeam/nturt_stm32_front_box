@@ -714,7 +714,7 @@ static void MX_IWDG1_Init(void)
   /* USER CODE END IWDG1_Init 0 */
 
   /* USER CODE BEGIN IWDG1_Init 1 */
-#ifdef USE_WATCHDOG
+#ifdef PRODUCTION
   /* USER CODE END IWDG1_Init 1 */
   hiwdg1.Instance = IWDG1;
   hiwdg1.Init.Prescaler = IWDG_PRESCALER_4;
@@ -725,7 +725,7 @@ static void MX_IWDG1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN IWDG1_Init 2 */
-#endif  // USE_WATCHDOG
+#endif  // PRODUCTION
   /* USER CODE END IWDG1_Init 2 */
 
 }
@@ -1125,9 +1125,9 @@ __weak void start_feed_dog_task(void *argument)
 {
   /* USER CODE BEGIN 5 */
   while (1) {
-#ifdef USE_WATCHDOG
+#ifdef PRODUCTION
     HAL_IWDG_Refresh(&hiwdg1);
-#endif  // USE_WATCHDOG
+#endif  // PRODUCTION
     osDelay(100);
   }
   /* USER CODE END 5 */
@@ -1194,18 +1194,26 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
-  HAL_GPIO_WritePin(LED_BUILTIN_GREEN_GPIO_Port, LED_BUILTIN_GREEN_Pin,
-                    GPIO_PIN_SET);
-  HAL_GPIO_WritePin(LED_BUILTIN_YELLOW_GPIO_Port, LED_BUILTIN_YELLOW_Pin,
-                    GPIO_PIN_SET);
-  HAL_GPIO_WritePin(LED_BUILTIN_RED_GPIO_Port, LED_BUILTIN_RED_Pin,
-                    GPIO_PIN_SET);
+  // if under debugging
+  if ((CoreDebug->DHCSR & 0x1) == 0x1) {
+    __asm volatile("BKPT #0");
+  } else {
+#ifdef PRODUCTION
+    NVIC_SystemReset();
+#else
+    HAL_GPIO_WritePin(LED_BUILTIN_GREEN_GPIO_Port, LED_BUILTIN_GREEN_Pin,
+                      GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_BUILTIN_YELLOW_GPIO_Port, LED_BUILTIN_YELLOW_Pin,
+                      GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_BUILTIN_RED_GPIO_Port, LED_BUILTIN_RED_Pin,
+                      GPIO_PIN_SET);
 
-  HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(LED_VCU_GPIO_Port, LED_VCU_Pin, GPIO_PIN_SET);
-  while (1) {
+    HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_VCU_GPIO_Port, LED_VCU_Pin, GPIO_PIN_SET);
+    while (1) {
+    }
+#endif  // PRODUCTION
   }
   /* USER CODE END Error_Handler_Debug */
 }

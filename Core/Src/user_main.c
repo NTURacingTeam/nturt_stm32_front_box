@@ -83,18 +83,18 @@ void user_init() {
   led_module_init();
 
 // project
-#ifndef TEST
-   DashboardController_ctor(&dashboard_controller);
-   DashboardController_start(&dashboard_controller);
-   FrontBoxCan_ctor(&front_box_can, &hfdcan3);
-   FrontBoxCan_start(&front_box_can);
-   StatusController_ctor(&status_controller);
-   StatusController_start(&status_controller);
-   TorqueController_ctor(&torque_controller);
-   TorqueController_start(&torque_controller);
+#ifndef TESTING
+  DashboardController_ctor(&dashboard_controller);
+  DashboardController_start(&dashboard_controller);
+  FrontBoxCan_ctor(&front_box_can, &hfdcan3);
+  FrontBoxCan_start(&front_box_can);
+  StatusController_ctor(&status_controller);
+  StatusController_start(&status_controller);
+  TorqueController_ctor(&torque_controller);
+  TorqueController_start(&torque_controller);
 
   sensor_init();
-#endif  // TEST
+#endif  // TESTING
 
 // test
 #ifdef LED_TEST
@@ -181,7 +181,7 @@ static void button_module_init() {
   ButtonMonitor_add_button(&button_monitor, &button_cb[MICRO_BSE],
                            MICRO_BSE_GPIO_Port, MICRO_BSE_Pin);
 
-#ifndef TEST
+#ifndef TESTING
   ButtonMonitor_register_callback(&button_monitor, GEAR_HIGH,
                                   &TorqueController_gear_high_button_callback,
                                   (void *)&torque_controller);
@@ -189,7 +189,7 @@ static void button_module_init() {
       &button_monitor, GEAR_REVERSE,
       &TorqueController_gear_reverse_button_callback,
       (void *)&torque_controller);
-#endif  // TEST
+#endif  // TESTING
 
 #ifdef BUTTON_TEST
   ButtonMonitor_register_callback(&button_monitor, BUTTON_BUILTIN,
@@ -275,48 +275,14 @@ unsigned long getRunTimeCounterValue(void) { return get_10us(); }
 
 // freertos callback function when task stack overflowed
 void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName) {
-  __disable_irq();
-  // if under debugging
-  if ((CoreDebug->DHCSR & 0x1) == 0x1) {
-    __asm volatile("BKPT #0");
-  } else {
-    printf("Stack overflowed for %s\n", pcTaskName);
-
-    HAL_GPIO_WritePin(LED_BUILTIN_GREEN_GPIO_Port, LED_BUILTIN_GREEN_Pin,
-                      GPIO_PIN_SET);
-    HAL_GPIO_WritePin(LED_BUILTIN_YELLOW_GPIO_Port, LED_BUILTIN_YELLOW_Pin,
-                      GPIO_PIN_SET);
-    HAL_GPIO_WritePin(LED_BUILTIN_RED_GPIO_Port, LED_BUILTIN_RED_Pin,
-                      GPIO_PIN_SET);
-
-    HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(LED_VCU_GPIO_Port, LED_VCU_Pin, GPIO_PIN_SET);
-    while (1) {
-    }
-  }
+  printf("Stack overflowed for %s\n", pcTaskName);
+  Error_Handler();
 }
 
 // stm32_module callback function when assertion failed
 void __module_assert_fail(const char *assertion, const char *file,
                           unsigned int line, const char *function) {
-  __disable_irq();
-  // if under debugging
-  if ((CoreDebug->DHCSR & 0x1) == 0x1) {
-    __asm volatile("BKPT #0");
-  } else {
-    printf("%s:%u: %s: STM32 module assertion `%s' failed.\n", file, line,
-           function, assertion);
-
-    HAL_GPIO_WritePin(LED_BUILTIN_GREEN_GPIO_Port, LED_BUILTIN_GREEN_Pin,
-                      GPIO_PIN_SET);
-    HAL_GPIO_WritePin(LED_BUILTIN_YELLOW_GPIO_Port, LED_BUILTIN_YELLOW_Pin,
-                      GPIO_PIN_SET);
-    HAL_GPIO_WritePin(LED_BUILTIN_RED_GPIO_Port, LED_BUILTIN_RED_Pin,
-                      GPIO_PIN_SET);
-
-    HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(LED_VCU_GPIO_Port, LED_VCU_Pin, GPIO_PIN_SET);
-    while (1) {
-    }
-  }
+  printf("%s:%u: %s: STM32 module assertion `%s' failed.\n", file, line,
+         function, assertion);
+  Error_Handler();
 }

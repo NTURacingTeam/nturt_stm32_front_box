@@ -9,14 +9,18 @@
 #define __dma_buffer __attribute__((section(".dma_buffer")))
 
 /* project config ------------------------------------------------------------*/
+// build config
+#define PRODUCTION
+
+#ifndef PRODUCTION
+/* testing -------------------------------------------------------------------*/
 // #define LED_TEST
 // #define BUTTON_TEST
 
-#define USE_WATCHDOG
-
 #if defined(LED_TEST) || defined(BUTTON_TEST)
-#define TEST
+#define TESTING
 #endif
+#endif // PRODUCTION
 
 // freertos stack size
 #define FREERTOS_STATS_TASK_STACK_SIZE 256
