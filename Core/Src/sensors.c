@@ -51,7 +51,7 @@
 #include "sensors.h"
 
 #define USE_HALL_SENSOR
-// #define USE_D6T
+// #define USE_D6T  
 
 #define MUTEX_TIMEOUT 0x02
 #define ADC_TIMEOUT 0x02
@@ -297,7 +297,7 @@ void sensor_handler(void* argument) {
 
     //start the hall timer
 #ifdef USE_HALL_SENSOR
-    HAL_TIM_Base_Start(&htim7);
+    HAL_TIM_Base_Start_IT(&htim7);
 #endif
 
     while(1) {
@@ -554,7 +554,7 @@ static uint8_t init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buff
         {0x05, 0x90, 0x3A, 0xB8},
         {0x03, 0x00, 0x03, 0x8B},
         {0x03, 0x00, 0x07, 0x97},
-        {0x92, 0x00, 0x00, 0xE9}
+        {0x02, 0x00, 0x00, 0xE9}
     };
 
     //fill the first 3 bytes of rawData with these data since they will be used in CRC
