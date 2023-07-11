@@ -1,6 +1,7 @@
 #include "status_controller.h"
 
 // glibc include
+#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -40,9 +41,7 @@ ModuleRet __StatusController_start(Task* const _self) {
   // register error callback function
   ErrorHandler_add_error_callback(&error_handler, &self->error_callback_cb_,
                                   StatusController_error_handler, (void*)self,
-                                  ERROR_CODE_APPS_IMPLAUSIBILITY |
-                                      ERROR_CODE_BSE_IMPLAUSIBILITY |
-                                      ERROR_CODE_CAN_RX_CRITICAL);
+                                  ERROR_CODE_ALL);
 
   return Task_create_freertos_task(
       (Task*)self, "status_controller", STATUS_CONTROLLER_TASK_PRIORITY,
@@ -64,8 +63,8 @@ void StatusController_ctor(StatusController* const self) {
   self->status_ = StatusInit;
 
   // set rtd condition controlled by error handler to true
-  self->rtd_condition_ = RTD_CON_APPS | RTD_CON_BSE | RTD_CON_CAN_TX |
-                         RTD_CON_CAN_RX_CRITICAL | RTD_CON_PEDAL_PLAUSIBILITY;
+  self->rtd_condition_ =
+      RTD_CON_CAN_TX | RTD_CON_CAN_RX_CRITICAL | RTD_CON_APPS | RTD_CON_BSE;
 
   self->blink_rtd_light_task_handle_ = NULL;
   self->play_rtd_sound_task_handle_ = NULL;
@@ -105,23 +104,6 @@ ModuleRet StatusController_reset_status(StatusController* const self) {
 void StatusController_error_handler(void* const _self, uint32_t error_code) {
   StatusController* const self = (StatusController*)_self;
 
-  if (error_code &
-      (ERROR_CODE_APPS_LOW | ERROR_CODE_APPS_HIGH | ERROR_CODE_APPS_DIVERGE)) {
-    if (error_code & ERROR_SET) {
-      self->rtd_condition_ &= ~RTD_CON_APPS;
-    } else {
-      self->rtd_condition_ |= RTD_CON_APPS;
-    }
-  }
-
-  if (error_code & (ERROR_CODE_BSE_LOW | ERROR_CODE_BSE_HIGH)) {
-    if (error_code & ERROR_SET) {
-      self->rtd_condition_ &= ~RTD_CON_BSE;
-    } else {
-      self->rtd_condition_ |= RTD_CON_BSE;
-    }
-  }
-
   if (error_code & ERROR_CODE_CAN_TX) {
     if (error_code & ERROR_SET) {
       self->rtd_condition_ &= ~RTD_CON_CAN_TX;
@@ -137,6 +119,22 @@ void StatusController_error_handler(void* const _self, uint32_t error_code) {
       self->rtd_condition_ |= RTD_CON_CAN_RX_CRITICAL;
     }
   }
+
+  if (error_code & ERROR_CODE_APPS_MASK) {
+    if (error_code & ERROR_SET) {
+      self->rtd_condition_ &= ~RTD_CON_APPS;
+    } else {
+      self->rtd_condition_ |= RTD_CON_APPS;
+    }
+  }
+
+  if (error_code & ERROR_CODE_BSE_MASK) {
+    if (error_code & ERROR_SET) {
+      self->rtd_condition_ &= ~RTD_CON_BSE;
+    } else {
+      self->rtd_condition_ |= RTD_CON_BSE;
+    }
+  }
 }
 
 void StatusController_task_code(void* const _self) {
@@ -149,7 +147,7 @@ void StatusController_task_code(void* const _self) {
     GPIO_PinState bse_micro;
     ButtonMonitor_read_state(&button_monitor, MICRO_BSE, &bse_micro);
     xSemaphoreTake(pedal.mutex, portMAX_DELAY);
-    float apps = pedal.apps1;
+    float apps = fmaxf(pedal.apps1, pedal.apps2);
     xSemaphoreGive(pedal.mutex);
     if (self->rtd_condition_ & RTD_CON_PEDAL_PLAUSIBILITY) {
       if (bse_micro == GPIO_PIN_SET &&
@@ -166,15 +164,10 @@ void StatusController_task_code(void* const _self) {
       }
     }
 
-    // critical node status (rear sensor)
+    // critical node status (rear sensor, bms, inverter)
     xSemaphoreTake(can_vcu_rx_mutex, portMAX_DELAY);
-    // if (can_vcu_rx.REAR_SENSOR_Status.REAR_SENSOR_Status == StatusRunning) {
-    if (true) {
-      self->rtd_condition_ |= RTD_CON_CRITICAL_NODE_STATUS;
-    } else {
-      self->rtd_condition_ &= ~RTD_CON_CRITICAL_NODE_STATUS;
-    }
-
+    // if (can_vcu_rx.REAR_SENSOR_Status.REAR_SENSOR_Status == StatusRunning ||
+    // can_vcu_rx.BMS_Status.BMS_Error_Code == 0 ||
     if (can_vcu_rx.INV_Fault_Codes.INV_Post_Fault_Lo ||
         can_vcu_rx.INV_Fault_Codes.INV_Post_Fault_Hi ||
         can_vcu_rx.INV_Fault_Codes.INV_Run_Fault_Lo ||

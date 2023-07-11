@@ -42,10 +42,12 @@ static __dtcmram struct button_cb button_cb[NUM_BUTTON];
 static __dtcmram struct error_callback_cb auxiliary_error_callback_cb;
 static __dtcmram struct led_cb led_cb[NUM_LED];
 
+#ifndef PRODUCTION
 // project
 static __dtcmram StaticTask_t freertos_stats_task_cb;
 static __dtcmram uint32_t
     freertos_stats_task_buffer[FREERTOS_STATS_TASK_STACK_SIZE];
+#endif  // PRODUCTION
 
 /* Static function prototype -------------------------------------------------*/
 /**
@@ -94,6 +96,11 @@ void user_init() {
   TorqueController_start(&torque_controller);
 
   sensor_init();
+
+  // register error callback function
+  ErrorHandler_add_error_callback(&error_handler, &auxiliary_error_callback_cb,
+                                  auxiliary_error_handler, NULL,
+                                  ERROR_CODE_ALL);
 #endif  // TESTING
 
 // test
@@ -102,16 +109,13 @@ void user_init() {
               TaskPriorityNormal, NULL);
 #endif  // LED_TEST
 
-  // register error callback function
-  ErrorHandler_add_error_callback(&error_handler, &auxiliary_error_callback_cb,
-                                  auxiliary_error_handler, NULL,
-                                  ERROR_CODE_ALL);
-
+#ifndef PRODUCTION
   // start freertos stats task for monitoring freertos states
   freertos_stats_task_handle = xTaskCreateStatic(
       freertos_stats_task, "freertos_stats_task",
       FREERTOS_STATS_TASK_STACK_SIZE, NULL, TaskPriorityLowest,
       freertos_stats_task_buffer, &freertos_stats_task_cb);
+#endif  // PRODUCTION
 }
 
 /* Task implementation -------------------------------------------------------*/
@@ -244,6 +248,9 @@ static void led_module_init() {
                         SIREN_RTD_GPIO_Port, SIREN_RTD_Pin);
 
   LedController_start(&led_controller);
+
+  // turn on vcu light
+  LedController_turn_on(&led_controller, LED_VCU);
 }
 
 static void auxiliary_error_handler(void *const argument, uint32_t error_code) {

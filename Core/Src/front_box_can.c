@@ -39,7 +39,7 @@
 
 /* can frame index for rx receive timeout error ------------------------------*/
 #define NUM_NOT_DEFINED_FRAME 1
-#define NUM_CRITICAL_FRAME 2
+#define NUM_CRITICAL_FRAME 4
 #define NUM_OPTIONAL_FRAME 2
 #define NUM_FRAME (NUM_CRITICAL_FRAME + NUM_OPTIONAL_FRAME)
 
@@ -50,7 +50,10 @@
 #define FRAME_CRITICAL_BASE (FRAME_NOT_DEFINED + NUM_NOT_DEFINED_FRAME)
 #define FRAME_CRITICAL(X) (1UL << (FRAME_CRITICAL_BASE + X - 1UL))
 
-#define INV_Fast_Info_INDEX FRAME_CRITICAL(0)
+// #define REAR_SENSOR_Status_INDEX FRAME_CRITICAL(0)
+// #define BMS_Status_INDEX FRAME_CRITICAL(1)
+#define INV_Fault_Codes_INDEX FRAME_CRITICAL(2)
+#define INV_Fast_Info_INDEX FRAME_CRITICAL(3)
 
 #define FRAME_CRITICAL_MASK \
   ((1UL << (FRAME_CRITICAL_BASE + NUM_CRITICAL_FRAME - 1UL)) - 1UL)
@@ -58,7 +61,9 @@
 // optional frame
 #define FRAME_OPTIONAL_BASE (FRAME_CRITICAL_BASE + NUM_CRITICAL_FRAME)
 #define FRAME_OPTIONAL(X) (1UL << (FRAME_OPTIONAL_BASE + X - 1UL))
+
 #define REAR_SENSOR_Status_INDEX FRAME_OPTIONAL(0)
+#define BMS_Status_INDEX FRAME_OPTIONAL(1)
 
 #define FRAME_OPTIONAL_MASK                                            \
   (((1UL << (FRAME_OPTIONAL_BASE + NUM_OPTIONAL_FRAME - 1UL)) - 1UL) - \
@@ -124,48 +129,51 @@ void FrontBoxCan_periodic_update(FrontBoxCan* const self,
 void __FrontBoxCan_configure(CanTransceiver* const self) {
   (void)self;
 
-  // config can filter
+  /* config can filter -------------------------------------------------------*/
   FDCAN_FilterTypeDef can_standard_filter0 = {
       .IdType = FDCAN_STANDARD_ID,
       .FilterIndex = 0,
       .FilterType = FDCAN_FILTER_DUAL,
-      .FilterConfig = FDCAN_FILTER_TO_RXFIFO1,
-      .FilterID1 = 0xb0,
-      .FilterID2 = 0x202,
+      .FilterConfig = FDCAN_FILTER_TO_RXFIFO0,
+      .FilterID1 = REAR_SENSOR_Status_CANID,
+      .FilterID2 = BMS_Error_Code_CANID,
       .RxBufferIndex = 0,
   };
-  if (HAL_FDCAN_ConfigFilter(&hfdcan3, &can_standard_filter0) != HAL_OK) {
-    Error_Handler();
-  }
+  CHECK_INIT(HAL_FDCAN_ConfigFilter(&hfdcan3, &can_standard_filter0));
+
   FDCAN_FilterTypeDef can_standard_filter1 = {
       .IdType = FDCAN_STANDARD_ID,
       .FilterIndex = 1,
       .FilterType = FDCAN_FILTER_DUAL,
       .FilterConfig = FDCAN_FILTER_TO_RXFIFO0,
-      .FilterID1 = 0xab,
-      .FilterID2 = 0x14,
+      .FilterID1 = INV_Fault_Codes_CANID,
+      .FilterID2 = INV_Fault_Codes_CANID,
       .RxBufferIndex = 0,
   };
-  if (HAL_FDCAN_ConfigFilter(&hfdcan3, &can_standard_filter1) != HAL_OK) {
-    Error_Handler();
-  }
+  CHECK_INIT(HAL_FDCAN_ConfigFilter(&hfdcan3, &can_standard_filter1));
+
+  FDCAN_FilterTypeDef can_standard_filter2 = {
+      .IdType = FDCAN_STANDARD_ID,
+      .FilterIndex = 2,
+      .FilterType = FDCAN_FILTER_DUAL,
+      .FilterConfig = FDCAN_FILTER_TO_RXFIFO1,
+      .FilterID1 = INV_Fast_Info_CANID,
+      .FilterID2 = INV_Fast_Info_CANID,
+      .RxBufferIndex = 0,
+  };
+  CHECK_INIT(HAL_FDCAN_ConfigFilter(&hfdcan3, &can_standard_filter2));
 
   // configure filter for non-matched id and remote frame
-  if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan3, FDCAN_REJECT, FDCAN_REJECT,
-                                   FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE)) {
-    Error_Handler();
-  }
+  CHECK_INIT(HAL_FDCAN_ConfigGlobalFilter(&hfdcan3, FDCAN_REJECT, FDCAN_REJECT,
+                                          FDCAN_REJECT_REMOTE,
+                                          FDCAN_REJECT_REMOTE));
 
   // start can
-  if (HAL_FDCAN_Start(&hfdcan3) != HAL_OK) {
-    Error_Handler();
-  }
+  CHECK_INIT(HAL_FDCAN_Start(&hfdcan3));
 
   // activate interrupt for high priority can signal to fifo1
-  if (HAL_FDCAN_ActivateNotification(&hfdcan3, FDCAN_IT_RX_FIFO1_NEW_MESSAGE,
-                                     0) != HAL_OK) {
-    Error_Handler();
-  }
+  CHECK_INIT(HAL_FDCAN_ActivateNotification(&hfdcan3,
+                                            FDCAN_IT_RX_FIFO1_NEW_MESSAGE, 0));
 
   // can singal struct
   nturt_can_config_vcu_hp_Check_Receive_Timeout_Init(&can_vcu_hp_rx);
@@ -269,10 +277,18 @@ inline ModuleRet FrontBoxCan_transmit(FrontBoxCan* const self,
 /* Static function -----------------------------------------------------------*/
 uint32_t frame_id_to_index(uint32_t id) {
   switch (id) {
-    case INV_Fast_Info_CANID:
-      return INV_Fast_Info_INDEX;
     case REAR_SENSOR_Status_CANID:
       return REAR_SENSOR_Status_INDEX;
+
+    case BMS_Error_Code_CANID:
+      return BMS_Status_INDEX;
+
+    case INV_Fault_Codes_CANID:
+      return INV_Fault_Codes_INDEX;
+
+    case INV_Fast_Info_CANID:
+      return INV_Fast_Info_INDEX;
+
     default:
       return 0;
   }
@@ -339,6 +355,12 @@ void _TOut_MONO_nturt_can_config(FrameMonitor_t* mon, uint32_t msgid,
 }
 
 /* coderdbc callback function called befor transmission ----------------------*/
+// don't need to do anything since inverter command is update in
+// torque_controller
+void FTrn_INV_Command_Message_nturt_can_config(INV_Command_Message_t* m) {
+  (void)m;
+}
+
 // don't need to do anything since status and error code are update in
 // error_handler and status_controller respectively
 void FTrn_VCU_Status_nturt_can_config(VCU_Status_t* m) { (void)m; }

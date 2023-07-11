@@ -25,6 +25,15 @@
 #include "status_controller.h"
 #include "torque_controller.h"
 
+/* macro ---------------------------------------------------------------------*/
+// initialization checking macro
+#define CHECK_INIT(RET)    \
+  do {                     \
+    if ((RET) != HAL_OK) { \
+      Error_Handler();     \
+    }                      \
+  } while (0)
+
 /* Exported variable ---------------------------------------------------------*/
 // stm32_module
 extern ButtonMonitor button_monitor;
