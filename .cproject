@@ -80,11 +80,11 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Lib/nturt_stm32_module/src"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Lib/nturt_can_config/generated_code/nturt_can_config/src"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Lib/nturt_can_config/generated_code/nturt_can_config/src"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Lib/nturt_stm32_module/src"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>

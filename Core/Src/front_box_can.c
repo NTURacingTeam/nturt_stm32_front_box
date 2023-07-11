@@ -136,7 +136,7 @@ void __FrontBoxCan_configure(CanTransceiver* const self) {
       .FilterType = FDCAN_FILTER_DUAL,
       .FilterConfig = FDCAN_FILTER_TO_RXFIFO0,
       .FilterID1 = REAR_SENSOR_Status_CANID,
-      .FilterID2 = BMS_Error_Code_CANID,
+      .FilterID2 = BMS_Status_CANID,
       .RxBufferIndex = 0,
   };
   CHECK_INIT(HAL_FDCAN_ConfigFilter(&hfdcan3, &can_standard_filter0));
@@ -280,7 +280,7 @@ uint32_t frame_id_to_index(uint32_t id) {
     case REAR_SENSOR_Status_CANID:
       return REAR_SENSOR_Status_INDEX;
 
-    case BMS_Error_Code_CANID:
+    case BMS_Status_CANID:
       return BMS_Status_INDEX;
 
     case INV_Fault_Codes_CANID:
