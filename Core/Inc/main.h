@@ -154,6 +154,7 @@ void Error_Handler(void);
 #define USB_FS_OVCR_EXTI_IRQn EXTI9_5_IRQn
 #define HALL_R_Pin GPIO_PIN_8
 #define HALL_R_GPIO_Port GPIOC
+#define HALL_R_EXTI_IRQn EXTI9_5_IRQn
 #define LED_WARN_Pin GPIO_PIN_9
 #define LED_WARN_GPIO_Port GPIOC
 #define USB_FS_VBUS_Pin GPIO_PIN_9

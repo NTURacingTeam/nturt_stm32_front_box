@@ -8,6 +8,9 @@
 #include "timers.h"
 #include "user_main.h"
 
+/*do we use the hall sensors*/
+#define USE_HALL_SENSOR
+
 /*macro: freertos object parameter*/
 #define SENSOR_DATA_TASK_STACK_SIZE 256
 
