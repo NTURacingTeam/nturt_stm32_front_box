@@ -50,7 +50,6 @@
 //own include
 #include "sensors.h"
 
-#define USE_HALL_SENSOR
 // #define USE_D6T  
 
 #define MUTEX_TIMEOUT 0x02
