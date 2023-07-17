@@ -356,17 +356,19 @@ void sensor_handler(void* argument) {
             MovingAverageFilter_update(&moving_average_filter[0], APPS1_transfer_function(adc_dma_buffer.apps1, apps1_compensation), &apps1_filtered);
             MovingAverageFilter_update(&moving_average_filter[1], APPS2_transfer_function(adc_dma_buffer.apps2, apps2_compensation), &apps2_filtered);
             MovingAverageFilter_update(&moving_average_filter[2], BSE_transfer_function(adc_dma_buffer.bse, bse_compensation), &bse_filtered);
-            const float apps1 = fuzzy_edge_remover(apps1_filtered, 1.0, 0.0);
-            const float apps2 = fuzzy_edge_remover(apps2_filtered, 1.0, 0.0);
-            const float bse = fuzzy_edge_remover(bse_filtered, 1.0, 0.0);
+            const float apps1 = fuzzy_edge_remover(apps1_filtered, 1.0, 0.0, 0.01);
+            const float apps2 = fuzzy_edge_remover(apps2_filtered, 1.0, 0.0, 0.01);
+            const float bse = fuzzy_edge_remover(bse_filtered, 1.0, 0.0, 0.01);
 
             Error_report(ERROR_CODE_APPS1_HIGH, &pedal_err_count.apps1.high, apps1 > 1.0 ? true : false);
             Error_report(ERROR_CODE_APPS1_LOW, &pedal_err_count.apps1.low, apps1 < 0.0 ? true : false);
             Error_report(ERROR_CODE_APPS2_HIGH, &pedal_err_count.apps2.high, apps2 > 1.0 ? true : false);
             Error_report(ERROR_CODE_APPS2_LOW, &pedal_err_count.apps2.low, apps2 < 0.0 ? true : false);
             Error_report(ERROR_CODE_APPS_DIVERGE, &pedal_err_count.apps_disagree, apps1-apps2 > 0.1 || apps2-apps1 > 0.1 ? true : false);
-            Error_report(ERROR_CODE_BSE_HIGH, &pedal_err_count.bse.high, bse > 1.0 ? true : false);
-            Error_report(ERROR_CODE_BSE_LOW, &pedal_err_count.bse.low, bse < 0.0 ? true : false);
+            // Error_report(ERROR_CODE_BSE_HIGH, &pedal_err_count.bse.high, bse > 1.0 ? true : false);
+            // Error_report(ERROR_CODE_BSE_LOW, &pedal_err_count.bse.low, bse < 0.0 ? true : false);
+            Error_report(ERROR_CODE_BSE_LOW, &pedal_err_count.bse.low, fuzzy_edge_remover(oil_transfer_function(adc_dma_buffer.oil), 70.0, 0.0, 15) < 0.0 ? true : false);
+            Error_report(ERROR_CODE_BSE_HIGH, &pedal_err_count.bse.high, fuzzy_edge_remover(oil_transfer_function(adc_dma_buffer.oil), 70.0, 0.0, 5)  > 70.0 ? true : false);
             
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 pedal.apps1 = apps1;

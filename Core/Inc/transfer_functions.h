@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "sensors.h"
 
-float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge);
+float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge, const float margin);
 
 /**
  * @brief transfer function for the first APPS

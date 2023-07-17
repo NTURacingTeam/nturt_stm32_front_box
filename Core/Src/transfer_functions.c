@@ -3,17 +3,15 @@
 // #include "transfer_functions.h"
 
 #define START_TO_OUTPUT_MARGIN 0.01
-#define OUT_OF_BOUNDS_MARGIN 0.01  // TODO: where do we put these fuzzy bound constants
 
-float fuzzy_edge_remover(const float raw, const float highEdge,
-                         const float lowEdge) {
+float fuzzy_edge_remover(const float raw, const float highEdge, const float lowEdge, const float margin) {
   if (raw < lowEdge) {
-    if (raw > -(OUT_OF_BOUNDS_MARGIN) + lowEdge)
+    if (raw > -(margin) + lowEdge)
       return lowEdge;
     else
       return raw;
   } else if (raw > highEdge) {
-    if (raw < highEdge + OUT_OF_BOUNDS_MARGIN)
+    if (raw < highEdge + margin)
       return highEdge;
     else
       return raw;
