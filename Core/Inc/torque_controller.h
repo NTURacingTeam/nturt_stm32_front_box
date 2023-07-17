@@ -43,6 +43,9 @@ typedef struct torque_controller {
   // inherited class
   Task super_;
 
+  /// @brief Multiplier for maximum torque for pedal plausibility check.
+  double torque_multiplier_;
+
   /// @brief Maximum torque [N * m].
   float maximum_torque_;
 
@@ -60,6 +63,9 @@ typedef struct torque_controller {
 
   /// @brief Task control block for blink_gear_light_task.
   StaticTask_t blink_gear_light_task_cb_;
+
+  /// @brief Error callback control block.
+  struct error_callback_cb error_callback_cb_;
 
   /// @brief Task stack buffer for link_gear_light_task.
   StackType_t blink_gear_light_task_stack_[configMINIMAL_STACK_SIZE];
@@ -84,6 +90,16 @@ void TorqueController_ctor(TorqueController* const self);
  * @note This function is virtual.
  */
 ModuleRet TorqueController_start(TorqueController* const _self);
+
+/**
+ * @brief Function to handle pedal plausibility check.
+ *
+ * @param[in,out] self The instance of the class.
+ * @param[in] error_code Error code.
+ * @return None
+ * @warning For internal use only.
+ */
+void TorqueController_error_handler(void* const _self, uint32_t error_code);
 
 /**
  * @brief Function to hendle high gear.

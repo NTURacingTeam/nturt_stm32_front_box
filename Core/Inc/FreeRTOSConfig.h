@@ -1,4 +1,5 @@
 /* USER CODE BEGIN Header */
+// clang-format off
 /*
  * FreeRTOS Kernel V10.3.1
  * Portion Copyright (C) 2017 Amazon.com, Inc. or its affiliates.  All Rights Reserved.

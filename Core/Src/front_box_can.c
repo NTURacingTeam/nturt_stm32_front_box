@@ -18,6 +18,7 @@
 
 // can_config include
 #include "canmonitorutil.h"
+#include "nturt_can_config.h"
 #include "nturt_can_config_front_sensor-binutil.h"
 #include "nturt_can_config_vcu-binutil.h"
 #include "nturt_can_config_vcu_hp-binutil.h"
@@ -50,7 +51,7 @@
 #define FRAME_CRITICAL_BASE (FRAME_NOT_DEFINED + NUM_NOT_DEFINED_FRAME)
 #define FRAME_CRITICAL(X) (1UL << (FRAME_CRITICAL_BASE + X - 1UL))
 
-// #define REAR_SENSOR_Status_INDEX FRAME_CRITICAL(0)
+#define REAR_SENSOR_Status_INDEX FRAME_CRITICAL(0)
 // #define BMS_Status_INDEX FRAME_CRITICAL(1)
 #define INV_Fault_Codes_INDEX FRAME_CRITICAL(2)
 #define INV_Fast_Info_INDEX FRAME_CRITICAL(3)
@@ -62,8 +63,7 @@
 #define FRAME_OPTIONAL_BASE (FRAME_CRITICAL_BASE + NUM_CRITICAL_FRAME)
 #define FRAME_OPTIONAL(X) (1UL << (FRAME_OPTIONAL_BASE + X - 1UL))
 
-#define REAR_SENSOR_Status_INDEX FRAME_OPTIONAL(0)
-#define BMS_Status_INDEX FRAME_OPTIONAL(1)
+#define BMS_Status_INDEX FRAME_OPTIONAL(0)
 
 #define FRAME_OPTIONAL_MASK                                            \
   (((1UL << (FRAME_OPTIONAL_BASE + NUM_OPTIONAL_FRAME - 1UL)) - 1UL) - \
@@ -84,7 +84,7 @@ __dtcmram SemaphoreHandle_t can_vcu_hp_rx_mutex;
 
 /* Static variable -----------------------------------------------------------*/
 // mutex control block
-static __dtcmram StaticSemaphore_t can_front_sensor_mutex_cb;
+static __dtcmram StaticSemaphore_t can_front_sensor_tx_mutex_cb;
 static __dtcmram StaticSemaphore_t can_vcu_rx_mutex_cb;
 static __dtcmram StaticSemaphore_t can_vcu_tx_mutex_cb;
 static __dtcmram StaticSemaphore_t can_vcu_hp_rx_mutex_cb;
@@ -130,29 +130,29 @@ void __FrontBoxCan_configure(CanTransceiver* const self) {
   (void)self;
 
   /* config can filter -------------------------------------------------------*/
-  FDCAN_FilterTypeDef can_standard_filter0 = {
+  FDCAN_FilterTypeDef can_filter0 = {
       .IdType = FDCAN_STANDARD_ID,
       .FilterIndex = 0,
       .FilterType = FDCAN_FILTER_DUAL,
       .FilterConfig = FDCAN_FILTER_TO_RXFIFO0,
-      .FilterID1 = REAR_SENSOR_Status_CANID,
+      .FilterID1 = INV_Fault_Codes_CANID,
       .FilterID2 = BMS_Status_CANID,
       .RxBufferIndex = 0,
   };
-  CHECK_INIT(HAL_FDCAN_ConfigFilter(&hfdcan3, &can_standard_filter0));
+  CHECK_INIT(HAL_FDCAN_ConfigFilter(&hfdcan3, &can_filter0));
 
-  FDCAN_FilterTypeDef can_standard_filter1 = {
-      .IdType = FDCAN_STANDARD_ID,
+  FDCAN_FilterTypeDef can_filter1 = {
+      .IdType = FDCAN_EXTENDED_ID,
       .FilterIndex = 1,
       .FilterType = FDCAN_FILTER_DUAL,
       .FilterConfig = FDCAN_FILTER_TO_RXFIFO0,
-      .FilterID1 = INV_Fault_Codes_CANID,
-      .FilterID2 = INV_Fault_Codes_CANID,
+      .FilterID1 = REAR_SENSOR_Status_CANID,
+      .FilterID2 = REAR_SENSOR_Status_CANID,
       .RxBufferIndex = 0,
   };
-  CHECK_INIT(HAL_FDCAN_ConfigFilter(&hfdcan3, &can_standard_filter1));
+  CHECK_INIT(HAL_FDCAN_ConfigFilter(&hfdcan3, &can_filter1));
 
-  FDCAN_FilterTypeDef can_standard_filter2 = {
+  FDCAN_FilterTypeDef can_filter2 = {
       .IdType = FDCAN_STANDARD_ID,
       .FilterIndex = 2,
       .FilterType = FDCAN_FILTER_DUAL,
@@ -161,7 +161,7 @@ void __FrontBoxCan_configure(CanTransceiver* const self) {
       .FilterID2 = INV_Fast_Info_CANID,
       .RxBufferIndex = 0,
   };
-  CHECK_INIT(HAL_FDCAN_ConfigFilter(&hfdcan3, &can_standard_filter2));
+  CHECK_INIT(HAL_FDCAN_ConfigFilter(&hfdcan3, &can_filter2));
 
   // configure filter for non-matched id and remote frame
   CHECK_INIT(HAL_FDCAN_ConfigGlobalFilter(&hfdcan3, FDCAN_REJECT, FDCAN_REJECT,
@@ -181,7 +181,7 @@ void __FrontBoxCan_configure(CanTransceiver* const self) {
 
   // mutex for can signal struct
   can_front_sensor_tx_mutex =
-      xSemaphoreCreateMutexStatic(&can_front_sensor_mutex_cb);
+      xSemaphoreCreateMutexStatic(&can_front_sensor_tx_mutex_cb);
   can_vcu_rx_mutex = xSemaphoreCreateMutexStatic(&can_vcu_rx_mutex_cb);
   can_vcu_tx_mutex = xSemaphoreCreateMutexStatic(&can_vcu_tx_mutex_cb);
   can_vcu_hp_rx_mutex = xSemaphoreCreateMutexStatic(&can_vcu_hp_rx_mutex_cb);
@@ -307,7 +307,6 @@ inline int __send_can_message__(uint32_t msgid, uint8_t ide, uint8_t* d,
 // coderdbc callback function called when receiving a new frame
 void _FMon_MONO_nturt_can_config(FrameMonitor_t* mon, uint32_t msgid) {
   if (mon->cycle_error) {
-    printf("timeout lift: %lx\n", msgid);
     int index = frame_id_to_index(msgid);
     if (index != FRAME_NOT_DEFINED) {
       if (index & FRAME_CRITICAL_MASK) {
@@ -394,6 +393,11 @@ void FTrn_FRONT_SENSOR_2_nturt_can_config(FRONT_SENSOR_2_t* m) {
   m->FRONT_SENSOR_Rear_Brake_Pressure_phys =
       travel_strain_oil_sensor.oil_pressure;
   xSemaphoreGive(travel_strain_oil_sensor.mutex);
+
+  xSemaphoreTake(wheel_speed_sensor.mutex, portMAX_DELAY);
+  m->FRONT_SENSOR_Front_Left_Wheel_Speed_phys = wheel_speed_sensor.left;
+  m->FRONT_SENSOR_Front_Right_Wheel_Speed_phys = wheel_speed_sensor.right;
+  xSemaphoreGive(wheel_speed_sensor.mutex);
 }
 
 void FTrn_FRONT_SENSOR_3_nturt_can_config(FRONT_SENSOR_3_t* m) {

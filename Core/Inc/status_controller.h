@@ -36,10 +36,9 @@
 #define RTD_CON_CRITICAL_NODE_STATUS 0x00000020UL
 #define RTD_CON_INVERTER_VOLTAGE 0x00000040UL
 
-#define RTD_CON_ALL                                                           \
-  (RTD_CON_APPS | RTD_CON_BSE | RTD_CON_PEDAL_PLAUSIBILITY | RTD_CON_CAN_TX | \
-   RTD_CON_CAN_RX_CRITICAL | RTD_CON_CRITICAL_NODE_STATUS |                   \
-   RTD_CON_INVERTER_VOLTAGE)
+#define RTD_CON_ALL                                                        \
+  (RTD_CON_APPS | RTD_CON_BSE | RTD_CON_CAN_TX | RTD_CON_CAN_RX_CRITICAL | \
+   RTD_CON_CRITICAL_NODE_STATUS | RTD_CON_INVERTER_VOLTAGE)
 
 /* type ----------------------------------------------------------------------*/
 typedef enum {

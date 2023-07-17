@@ -166,9 +166,9 @@ void StatusController_task_code(void* const _self) {
 
     // critical node status (rear sensor, bms, inverter)
     xSemaphoreTake(can_vcu_rx_mutex, portMAX_DELAY);
-    // if (can_vcu_rx.REAR_SENSOR_Status.REAR_SENSOR_Status == StatusRunning ||
-    // can_vcu_rx.BMS_Status.BMS_Error_Code == 0 ||
-    if (can_vcu_rx.INV_Fault_Codes.INV_Post_Fault_Lo ||
+    if (can_vcu_rx.REAR_SENSOR_Status.REAR_SENSOR_Status != StatusRunning ||
+        // can_vcu_rx.BMS_Status.BMS_Error_Code != 0 ||
+        can_vcu_rx.INV_Fault_Codes.INV_Post_Fault_Lo ||
         can_vcu_rx.INV_Fault_Codes.INV_Post_Fault_Hi ||
         can_vcu_rx.INV_Fault_Codes.INV_Run_Fault_Lo ||
         can_vcu_rx.INV_Fault_Codes.INV_Run_Fault_Hi) {
@@ -191,14 +191,14 @@ void StatusController_task_code(void* const _self) {
     /* update status ---------------------------------------------------------*/
     switch (self->status_) {
       case StatusInit:
-        if (self->rtd_condition_ == RTD_CON_ALL) {
+        if ((self->rtd_condition_ & RTD_CON_ALL) == RTD_CON_ALL) {
           LedController_turn_off(&led_controller, LED_VCU);
           self->status_ = StatusReady;
         }
         break;
 
       case StatusReady:
-        if (self->rtd_condition_ == RTD_CON_ALL) {
+        if ((self->rtd_condition_ & RTD_CON_ALL) == RTD_CON_ALL) {
           GPIO_PinState button_state;
           ButtonMonitor_read_state(&button_monitor, MICRO_BSE, &button_state);
 
@@ -254,14 +254,14 @@ void StatusController_task_code(void* const _self) {
         break;
 
       case StatusRunning:
-        if (self->rtd_condition_ != RTD_CON_ALL) {
+        if ((self->rtd_condition_ & RTD_CON_ALL) != RTD_CON_ALL) {
           LedController_turn_on(&led_controller, LED_VCU);
           self->status_ = StatusError;
         }
         break;
 
       case StatusError:
-        if (self->rtd_condition_ == RTD_CON_ALL) {
+        if ((self->rtd_condition_ & RTD_CON_ALL) == RTD_CON_ALL) {
           LedController_turn_off(&led_controller, LED_VCU);
           self->status_ = StatusReady;
         }

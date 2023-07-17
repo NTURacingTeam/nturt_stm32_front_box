@@ -20,7 +20,7 @@
 /* macro ---------------------------------------------------------------------*/
 // parameter
 #define DASHBOARD_CONTROLLER_TASK_PRIORITY TaskPriorityLow
-#define DASHBOARD_CONTROLLER_TASK_STACK_SIZE 256
+#define DASHBOARD_CONTROLLER_TASK_STACK_SIZE configMINIMAL_STACK_SIZE
 
 /* Exported variable ---------------------------------------------------------*/
 
