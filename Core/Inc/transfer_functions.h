@@ -20,7 +20,7 @@ static inline float APPS1_transfer_function(const uint16_t reading, const float 
 }
 
 static inline float APPS2_transfer_function (const uint16_t reading, const float compensation) {
-    return (float)(reading*2-860)/(3891-860) + compensation;
+    return (float)(reading*2*5/3-860)/(3891-860) + compensation;
 }
 
 static inline float BSE_transfer_function(const uint16_t reading, const float compensation) {
