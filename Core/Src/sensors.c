@@ -128,7 +128,7 @@ typedef struct {
 
 typedef struct {
     uint32_t elapsed_count;
-    uint32_t timer_count;
+    int32_t timer_count;
     SemaphoreHandle_t mutex;
 } timer_time_t;
 
@@ -591,6 +591,7 @@ void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, tim
 
     if(now->timer_count < last->timer_count) {
         diff->elapsed_count -= 1;
+        diff->timer_count += WHEEL_SPEED_TIMER_PERIOD/WHEEL_SPEED_TIMER_COUNT_PERIOD;
     }
     last->elapsed_count = now->elapsed_count;
     last->timer_count = now->timer_count;
