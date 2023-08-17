@@ -273,8 +273,7 @@ void sensor_handler(void* argument) {
     HAL_ADCEx_Calibration_Start(&hadc3, ADC_CALIB_OFFSET_LINEARITY, ADC_SINGLE_ENDED);
 
     //wait until the pedals are set back to zero
-    while(  HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin) != GPIO_PIN_RESET ||
-            HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin) != GPIO_PIN_RESET ) {
+    while(  HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin) != GPIO_PIN_RESET ) {
         vTaskDelay(pdMS_TO_TICKS(3));
     }
 
@@ -286,7 +285,7 @@ void sensor_handler(void* argument) {
     }
     const float apps1_compensation = - APPS1_transfer_function(adc_dma_buffer.apps1, 0);
     const float apps2_compensation = - APPS2_transfer_function(adc_dma_buffer.apps2, 0);
-    const float bse_compensation = - BSE_transfer_function(adc_dma_buffer.bse, 0);
+    const float bse_compensation = -0.05;
     
     //start the initial read, and start the timer that should later notifies this task to do stuff again
     xTaskNotify(xTaskGetCurrentTaskHandle(), FLAG_READ_SUS_PEDAL | FLAG_READ_TIRE_TEMP, eSetBits);
