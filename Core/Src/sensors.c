@@ -355,8 +355,8 @@ void sensor_handler(void* argument) {
             MovingAverageFilter_update(&moving_average_filter[0], APPS1_transfer_function(adc_dma_buffer.apps1, apps1_compensation), &apps1_filtered);
             MovingAverageFilter_update(&moving_average_filter[1], APPS2_transfer_function(adc_dma_buffer.apps2, apps2_compensation), &apps2_filtered);
             MovingAverageFilter_update(&moving_average_filter[2], BSE_transfer_function(adc_dma_buffer.bse, bse_compensation), &bse_filtered);
-            const float apps1 = fuzzy_edge_remover(apps1_filtered, 1.0, 0.0, 0.01);
-            const float apps2 = fuzzy_edge_remover(apps2_filtered, 1.0, 0.0, 0.01);
+            const float apps1 = fuzzy_edge_remover(apps1_filtered, 1.0, 0.0, 0.05);
+            const float apps2 = fuzzy_edge_remover(apps2_filtered, 1.0, 0.0, 0.05);
             const float bse = fuzzy_edge_remover(bse_filtered, 1.0, 0.0, 0.01);
 
             Error_report(ERROR_CODE_APPS1_HIGH, &pedal_err_count.apps1.high, apps1 > 1.0 ? true : false);
