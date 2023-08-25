@@ -256,12 +256,9 @@ void sensor_handler(void* argument) {
 #ifdef USE_D6T
     vTaskDelay(pdMS_TO_TICKS(20));
 
-   if(init_D6T(&hi2c5, &d6t_dma_buffer_R, FLAG_D6T_STARTUP, &pending_notifications)) {
-       Error_Handler();
-   }
-   if(init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications)) {
-       Error_Handler();
-   }
+    //TODO: store err state in Error Handler
+    const bool d6t_right_err = init_D6T(&hi2c5, &d6t_dma_buffer_R, FLAG_D6T_STARTUP, &pending_notifications);
+    const bool d6t_left_err = init_D6T(&hi2c1, &d6t_dma_buffer_L, FLAG_D6T_STARTUP, &pending_notifications);
     
     //wait for 500ms after initialization of D6T
     vTaskDelay(pdMS_TO_TICKS(500));
@@ -413,20 +410,24 @@ void sensor_handler(void* argument) {
             pending_notifications &= ~FLAG_READ_TIRE_TEMP;
 #ifdef USE_D6T
             //read the values from both sensors
-            HAL_I2C_Mem_Read_DMA(
-                &hi2c5,
-                d6t_dma_buffer_R.addr_write, 
-                d6t_dma_buffer_R.command, 
-                1, 
-                &(d6t_dma_buffer_R.PTAT.low), 
-                sizeof(d6t_dma_buffer_R.PTAT)+sizeof(d6t_dma_buffer_R.temp)+sizeof(d6t_dma_buffer_R.PEC));
-            HAL_I2C_Mem_Read_DMA(
-                &hi2c1, 
-                d6t_dma_buffer_L.addr_write, 
-                d6t_dma_buffer_L.command, 
-                1, 
-                &(d6t_dma_buffer_L.PTAT.low), 
-                sizeof(d6t_dma_buffer_L.PTAT)+sizeof(d6t_dma_buffer_L.temp)+sizeof(d6t_dma_buffer_L.PEC));
+            if(!d6t_right_err) {
+                HAL_I2C_Mem_Read_DMA(
+                    &hi2c5,
+                    d6t_dma_buffer_R.addr_write, 
+                    d6t_dma_buffer_R.command, 
+                    1, 
+                    &(d6t_dma_buffer_R.PTAT.low), 
+                    sizeof(d6t_dma_buffer_R.PTAT)+sizeof(d6t_dma_buffer_R.temp)+sizeof(d6t_dma_buffer_R.PEC));
+            }
+            if(!d6t_left_err) {
+                HAL_I2C_Mem_Read_DMA(
+                    &hi2c1, 
+                    d6t_dma_buffer_L.addr_write, 
+                    d6t_dma_buffer_L.command, 
+                    1, 
+                    &(d6t_dma_buffer_L.PTAT.low), 
+                    sizeof(d6t_dma_buffer_L.PTAT)+sizeof(d6t_dma_buffer_L.temp)+sizeof(d6t_dma_buffer_L.PEC));
+            }
             // wait for the DMA to finish, while we can do other stuff in the mean time
             //TODO: setup timeout exception and deal with error case where the stuff did not finish
 #endif
