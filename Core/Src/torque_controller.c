@@ -161,6 +161,7 @@ void TorqueController_task_code(void* const _self) {
       xSemaphoreGive(can_vcu_hp_rx_mutex);
 
       float torque_command_threshold;
+#ifdef ENABLE_SOFTATART
       // if trigger soft start
       if (motor_speed_ < SOFT_START_SPEED_THRESHOLD) {
         torque_command_threshold =
@@ -177,6 +178,9 @@ void TorqueController_task_code(void* const _self) {
                 NORMAL_TORQUE_SLOPE * (float)TORQUE_CONTROLLER_TASK_PERIOD /
                     1000.0F);
       }
+#else
+      torque_command_threshold = maximum_torque;
+#endif  // ENABLE_SOFTATART
       self->torque_command_last_ =
           fminf(torque_command, torque_command_threshold);
       self->inverter_command_.VCU_Torque_Command_phys =
