@@ -117,3 +117,8 @@ Software architecture.
 <img src="https://os.mbed.com/media/uploads/jeromecoutant/nucleo_h743zi2_morpho_right_2019_10_9.png"  width="90%" height="50%">
 
 <div style="page-break-after: always;"></div>
+
+
+## namwoam reminder
+
+Use command `git submodule update --init --recursive` to pull submodules.
