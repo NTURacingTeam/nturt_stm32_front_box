@@ -196,6 +196,7 @@ static void update_time_stamp(timer_time_t* last, volatile const timer_time_t* n
 static uint8_t ADC_request_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, uint8_t count);
 static uint8_t ADC_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, uint8_t count, uint32_t* notifications);
 static void Error_report(uint32_t errFlag, uint16_t* count, bool err);
+static bool AMT22_parity_check(uint16_t input);
 
 void sensor_timer_callback(TimerHandle_t timer) {
     xTaskNotify(sensors_data_task_handle, FLAG_READ_SUS_PEDAL, eSetBits);
@@ -498,15 +499,18 @@ void sensor_handler(void* argument) {
                 steer_angle_period = STEER_PERIOD_NORMAL;
             }
 
-            //TODO: CRC?
-
             /*calculate position and put the stuff into variables ----------------------------------------------------*/
             const uint8_t highByte = spi_rx_buffer[0];
             const uint8_t lowByte = spi_rx_buffer[1];
             const uint16_t position = ((uint16_t)highByte << 8) + (uint16_t)lowByte;
-            xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
-                steer_angle_sensor.steering_angle = steer_angle_transfer_function((position & 0x3FFF) >> 2);
-            xSemaphoreGive(steer_angle_sensor.mutex);
+
+            //calculate the parity of odd and even bits
+            if(AMT22_parity_check(position) == 0) {
+                xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
+                    steer_angle_sensor.steering_angle = steer_angle_transfer_function((position & 0x3FFF) >> 2);
+                xSemaphoreGive(steer_angle_sensor.mutex);
+            }
+            //TODO: error report
         }
     }
 }
@@ -618,6 +622,23 @@ void update_time_stamp(timer_time_t* last, volatile const timer_time_t* now, tim
     }
     last->elapsed_count = now->elapsed_count;
     last->timer_count = now->timer_count;
+}
+
+/**
+ * @brief checks parity for AMT22 sensors
+ * 
+ * AMT22 sensors have 2 odd parity bits at the front of the payload that checks even and odd bits respectively
+ * this function checks whether the 2 sets of parity is correct (should both be 1) 
+ * 
+ * @param input the number retrieved from AMT22 sensor
+ * @return true parity is wrong
+ * @return false parity is correct
+ */
+static bool AMT22_parity_check(uint16_t input) {
+    input ^= input >> 8;
+    input ^= input >> 4;
+    input ^= input >> 2;
+    return !((input & 0b11) == 0b11);
 }
 
 static uint8_t ADC_request_retry(ADC_HandleTypeDef* hadc, uint16_t* buffer, uint8_t length, const uint8_t count) {
