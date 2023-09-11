@@ -68,6 +68,14 @@ static inline float wheel_speed_tranfser_function(const uint32_t elapsed, const 
     return (1.0/tooth_per_rev) / (elapsed*WHEEL_SPEED_TIMER_PERIOD + count*WHEEL_SPEED_TIMER_COUNT_PERIOD) * 1000 * 60;
 }
 
+/**
+ * @brief exponential filter to filter data values of sensors
+ * 
+ * @param x the newly sampled input signal
+ * @param y_last the last output signal of this filter upon some sensor
+ * @param alpha the alpha value of the exponenetial filter. higher the alpha, higher the cutoff frequency
+ * @return float the current output signal of this filter upon the sensor of interest
+ */
 static inline float exp_filter(const float x, const float y_last, const alpha) {
   return alpha*y_last + (1-alpha)*x;
 }

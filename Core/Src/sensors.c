@@ -222,17 +222,26 @@ void sensor_timer_callback(TimerHandle_t timer) {
  * 
  */
 void sensor_handler(void* argument) {
-    //dma buffer zone
+    //TODO: handle every return status of FreeRTOS and HAL API
+    (void)argument;
+
+    /* the variables needed to track sensor information -------------------------------------------------------------*/
+
+    //dma buffer zone for raw sensor data
     static __dma_buffer adc_dma_buffer_t adc_dma_buffer = {0};
     static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_R = {0};
     static __dma_buffer i2c_d6t_dma_buffer_t d6t_dma_buffer_L = {0};
     static __dma_buffer uint8_t spi_rx_buffer[4] = {0};
     static __dma_buffer uint8_t spi_tx_buffer[4] = {0};
 
+    // the last time hall interrupt is triggered
     timer_time_t hall_time_L_last = {0};
     timer_time_t hall_time_R_last = {0};
 
-    //variables that tracks how long have the sensors been in an implausible state
+    //the variable that tracks the (last) filtered oil pressure for the exp filter
+    float oil_filtered = 0.0;
+
+    //the variable that tracks how long have the pedals been in an implausible state
     struct {
         struct {
             uint16_t high;
@@ -249,14 +258,12 @@ void sensor_handler(void* argument) {
         uint16_t apps_disagree;
     } pedal_err_count = {0};
 
-    //TODO: handle every return status of FreeRTOS and HAL API
-    (void)argument;
     //variable to store the pending flags that is sent from xTaskNotify
     uint32_t pending_notifications = 0U;
 
-    /*initialize D6T sensors*/
-    //first wait for 20ms for the D6T sensors to boot up
 #ifdef USE_D6T
+    /*initialize D6T sensors ------------------------------------------------------------------------*/
+    //first wait for 20ms for the D6T sensors to boot up
     vTaskDelay(pdMS_TO_TICKS(20));
 
     //TODO: store err state in Error Handler
@@ -267,7 +274,7 @@ void sensor_handler(void* argument) {
     vTaskDelay(pdMS_TO_TICKS(500));
 #endif
 
-    /*initialize the pedal sensors' compensation and initial value for oil sensor*/
+    /*initialize the pedal sensors' compensation and initial value for oil sensor------------------------------------*/
     //calib the adc
     HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET_LINEARITY, ADC_SINGLE_ENDED);
     HAL_ADCEx_Calibration_Start(&hadc3, ADC_CALIB_OFFSET_LINEARITY, ADC_SINGLE_ENDED);
@@ -277,18 +284,24 @@ void sensor_handler(void* argument) {
         vTaskDelay(pdMS_TO_TICKS(3));
     }
 
+    //start the ADC in DMA mode
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4);
     HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&(adc_dma_buffer.apps2), 3);
+
     //wait for both flags to be set
     if(wait_for_notif_flags(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH, ADC_TIMEOUT, &pending_notifications) != pdTRUE) {
         Error_Handler();
     }
+
+    //use the value read at zero position to offset the next readings
     const float apps1_compensation = - APPS1_transfer_function(adc_dma_buffer.apps1, 0);
     const float apps2_compensation = - APPS2_transfer_function(adc_dma_buffer.apps2, 0);
     const float bse_compensation = -0.05;
-    float oil_filtered = oil_transfer_function(adc_dma_buffer.oil);
+
+    //the first value of oil pressure
+    oil_filtered = oil_transfer_function(adc_dma_buffer.oil);
     
-    //start the initial read, and start the timer that should later notifies this task to do stuff again
+    //start the initial read, and start the timer that should later notifiy this task periodically
     xTaskNotify(xTaskGetCurrentTaskHandle(), FLAG_READ_SUS_PEDAL | FLAG_READ_TIRE_TEMP, eSetBits);
     if(xTimerStart(sensor_timer_handle, portMAX_DELAY) != pdPASS) {
         Error_Handler();
@@ -304,10 +317,12 @@ void sensor_handler(void* argument) {
             //wait for notifications from timer if there are no pending ones
             (void)xTaskNotifyWait(0, 0xFFFFFFFFUL, &pending_notifications, portMAX_DELAY);
         }
+        // execute tasks based on what notification is pending
 
         if(pending_notifications & FLAG_READ_SUS_PEDAL) {
             pending_notifications &= ~FLAG_READ_SUS_PEDAL; //clear bit
 
+            /*start the ADC that reads the analog values -----------------------------------------------------*/
             if(HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&(adc_dma_buffer.apps1), 4) != HAL_OK) {
                 if(ADC_request_retry(&hadc1, &adc_dma_buffer.apps1, 4, 3)) {
                     ErrorHandler_write_error(&error_handler, ERROR_CODE_ADC, ERROR_SET);
@@ -321,6 +336,7 @@ void sensor_handler(void* argument) {
                 }
             }
 
+            /*read the micro switches of the pedals --------------------------------------------------------*/
             const uint8_t micro_apps = (uint8_t)HAL_GPIO_ReadPin(MICRO_APPS_GPIO_Port, MICRO_APPS_Pin);
             const uint8_t micro_bse = (uint8_t)HAL_GPIO_ReadPin(MICRO_BSE_GPIO_Port, MICRO_BSE_Pin);
 
@@ -329,7 +345,7 @@ void sensor_handler(void* argument) {
                 pedal.micro_bse = micro_bse;
             xSemaphoreGive(pedal.mutex);
 
-            //wait for both flags to be set
+            /*wait for both ADC to finish and execute stuff if they fail ----------------------------------*/
             if (wait_for_notif_flags(FLAG_ADC1_FINISH | FLAG_ADC3_FINISH, pdMS_TO_TICKS(ADC_TIMEOUT), &pending_notifications) != pdTRUE) {
                 //edge case where only one or neither flags set
                 const uint32_t is_ADC1_done = pending_notifications & FLAG_ADC1_FINISH;
@@ -350,7 +366,7 @@ void sensor_handler(void* argument) {
                 }
             }
 
-            //DSP filtering for all pedals and oil pressure sensor
+            /*DSP filtering for all pedals and oil pressure sensor ------------------------------------------*/
             float apps1_filtered, apps2_filtered, bse_filtered;
             MovingAverageFilter_update(&moving_average_filter[0], APPS1_transfer_function(adc_dma_buffer.apps1, apps1_compensation), &apps1_filtered);
             MovingAverageFilter_update(&moving_average_filter[1], APPS2_transfer_function(adc_dma_buffer.apps2, apps2_compensation), &apps2_filtered);
@@ -361,7 +377,7 @@ void sensor_handler(void* argument) {
 
             oil_filtered = exp_filter(oil_transfer_function(adc_dma_buffer.oil) , oil_filtered, ALPHA_OIL_PRESSURE);
 
-            //error reporting for APPS and BSE
+            /*error reporting for APPS and BSE ---------------------------------------------------------------*/
             //TODO: another error handler for implausibility
             Error_report(ERROR_CODE_APPS1_HIGH, &pedal_err_count.apps1.high, apps1 > 1.0 ? true : false);
             Error_report(ERROR_CODE_APPS1_LOW, &pedal_err_count.apps1.low, apps1 < 0.0 ? true : false);
@@ -371,6 +387,7 @@ void sensor_handler(void* argument) {
             Error_report(ERROR_CODE_BSE_LOW, &pedal_err_count.bse.low, fuzzy_edge_remover(oil_filtered, 70.0, 0.0, 15) < 0.0 ? true : false);
             Error_report(ERROR_CODE_BSE_HIGH, &pedal_err_count.bse.high, fuzzy_edge_remover(oil_filtered, 70.0, 0.0, 5)  > 70.0 ? true : false);
             
+            /*output the final values to global resources ----------------------------------------------------*/
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 pedal.apps1 = apps1;
                 pedal.apps2 = apps2;
@@ -378,7 +395,7 @@ void sensor_handler(void* argument) {
             xSemaphoreGive(pedal.mutex);
         
         
-            //update the travel sensor's value
+            /*update the values for the rest of the sensors -------------------------------------------------*/
             xSemaphoreTake(travel_strain_oil_sensor.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 travel_strain_oil_sensor.left = travel_transfer_function(adc_dma_buffer.travel_l);
                 travel_strain_oil_sensor.right = travel_transfer_function(adc_dma_buffer.travel_r);
@@ -392,7 +409,7 @@ void sensor_handler(void* argument) {
                 pending_notifications &= ~FLAG_HALL_EDGE_LEFT; //clear flags
 
                 timer_time_t diff = {0};
-                update_time_stamp(&hall_time_L_last, &hall_time_L, &diff);
+                update_time_stamp(&hall_time_L_last, &hall_time_L, &diff); 
 
                 xSemaphoreTake(wheel_speed_sensor.mutex, MUTEX_TIMEOUT); 
                     wheel_speed_sensor.left = wheel_speed_tranfser_function(diff.elapsed_count, diff.timer_count);
@@ -414,7 +431,7 @@ void sensor_handler(void* argument) {
         if(pending_notifications & FLAG_READ_TIRE_TEMP) {
             pending_notifications &= ~FLAG_READ_TIRE_TEMP;
 #ifdef USE_D6T
-            //read the values from both sensors
+            /*read the values from both sensors ---------------------------------------------------*/
             if(!d6t_right_err) {
                 HAL_I2C_Mem_Read_DMA(
                     &hi2c5,
@@ -468,6 +485,7 @@ void sensor_handler(void* argument) {
             spi_tx_buffer[0] = 0;
             spi_tx_buffer[1] = 0;
 
+            /*start the SPI transmission in IT mode and wait for it to finish --------------------------------------------*/
             if(HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_buffer, spi_rx_buffer, 2) != HAL_OK) {
                 steer_angle_period = STEER_PERIOD_ERR;
                 break;
@@ -482,7 +500,7 @@ void sensor_handler(void* argument) {
 
             //TODO: CRC?
 
-            //calculate position and put the stuff in to variables
+            /*calculate position and put the stuff into variables ----------------------------------------------------*/
             const uint8_t highByte = spi_rx_buffer[0];
             const uint8_t lowByte = spi_rx_buffer[1];
             const uint16_t position = ((uint16_t)highByte << 8) + (uint16_t)lowByte;
@@ -584,7 +602,7 @@ static uint8_t init_D6T(I2C_HandleTypeDef* const hi2c, volatile i2c_d6t_dma_buff
 #endif //  USE_D6T
 
 /**
- * @brief this function calculates the difference between last and now, and updates the "now" time to "last"
+ * @brief this function calculates the difference between last and now, and updates the "now" time to the "last"
  * 
  * @param last previous time this function is called
  * @param now the new time stamp at which this time is called
