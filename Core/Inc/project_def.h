@@ -10,7 +10,15 @@
 
 /* project config ------------------------------------------------------------*/
 // build config
+/// @brief Build for production. Disables tests and enables watchdog.
 #define PRODUCTION
+
+/// @brief If enable soft start.
+#define ENABLE_SOFTATART
+
+/// @brief If RTD condition checks for FSAE rule and CAN node status, otherwies
+/// only checks for inverter voltage.
+#define SAFE_MODE
 
 #ifndef PRODUCTION
 /* testing -------------------------------------------------------------------*/
@@ -20,7 +28,7 @@
 #if defined(LED_TEST) || defined(BUTTON_TEST)
 #define TESTING
 #endif
-#endif // PRODUCTION
+#endif  // PRODUCTION
 
 // freertos stack size
 #define FREERTOS_STATS_TASK_STACK_SIZE 256
@@ -43,16 +51,16 @@
 #define MAXIMUM_TORQUE_HIGH_GEAR 134.0F
 
 /// @brief Threshold for motor spped when lower, trigger soft start in [RPM].
-#define SOFT_START_SPEED_THRESHOLD 300.0F
+#define SOFT_START_SPEED_THRESHOLD 100.0F
 
 /// @brief Torque slope for soft start [N * m / s].
-#define SOFT_START_TORQUE_SLOPE 30.0F
+#define SOFT_START_TORQUE_SLOPE 100.0F
 
 /// @brief Torque output starting point when triggering soft start [N * m].
 #define SOFT_START_TORQUE_STARTING_POINT 30.0F
 
 /// @brief Torque slope for normal torque output [N * m / s].
-#define NORMAL_TORQUE_SLOPE 60.0F
+#define NORMAL_TORQUE_SLOPE 200.0F
 
 /// @brief Torque output starting point for normal torque output [N * m].
 #define NORMAL_TORQUE_STARTING_POINT 60.0F

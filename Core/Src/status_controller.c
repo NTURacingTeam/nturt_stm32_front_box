@@ -167,7 +167,7 @@ void StatusController_task_code(void* const _self) {
     // critical node status (rear sensor, bms, inverter)
     xSemaphoreTake(can_vcu_rx_mutex, portMAX_DELAY);
     if (can_vcu_rx.REAR_SENSOR_Status.REAR_SENSOR_Status != StatusRunning ||
-        // can_vcu_rx.BMS_Status.BMS_Error_Code != 0 ||
+        can_vcu_rx.BMS_Status.BMS_Error_Code ||
         can_vcu_rx.INV_Fault_Codes.INV_Post_Fault_Lo ||
         can_vcu_rx.INV_Fault_Codes.INV_Post_Fault_Hi ||
         can_vcu_rx.INV_Fault_Codes.INV_Run_Fault_Lo ||
