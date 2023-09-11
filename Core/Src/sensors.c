@@ -504,13 +504,22 @@ void sensor_handler(void* argument) {
             const uint8_t lowByte = spi_rx_buffer[1];
             const uint16_t position = ((uint16_t)highByte << 8) + (uint16_t)lowByte;
 
+            uint32_t prevErr = 0;
+            ErrorHandler_get_error(&error_handler, &prevErr);
+
             //calculate the parity of odd and even bits
             if(AMT22_parity_check(position) == 0) {
                 xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
                     steer_angle_sensor.steering_angle = steer_angle_transfer_function((position & 0x3FFF) >> 2);
                 xSemaphoreGive(steer_angle_sensor.mutex);
+                
+                if(prevErr & ERROR_CODE_SPI) 
+                    ErrorHandler_write_error(&error_handler, ERROR_CODE_SPI, ERROR_CLEAR);
             }
-            //TODO: error report
+            else {
+                if(!(prevErr & ERROR_CODE_SPI)) 
+                    ErrorHandler_write_error(&error_handler, ERROR_CODE_SPI, ERROR_SET);
+            }
         }
     }
 }
