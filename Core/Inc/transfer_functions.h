@@ -68,4 +68,8 @@ static inline float wheel_speed_tranfser_function(const uint32_t elapsed, const 
     return (1.0/tooth_per_rev) / (elapsed*WHEEL_SPEED_TIMER_PERIOD + count*WHEEL_SPEED_TIMER_COUNT_PERIOD) * 1000 * 60;
 }
 
+static inline float exp_filter(const float x, const float y_last, const alpha) {
+  return alpha*y_last + (1-alpha)*x;
+}
+
 #endif //_TRANSFER_FUNCTION_H

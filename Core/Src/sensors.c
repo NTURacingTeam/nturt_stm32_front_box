@@ -87,6 +87,9 @@ MovingAverageFilter moving_average_filter[NUM_FILTER];
 // filter
 static float moving_average_buffer[NUM_FILTER] [MOVING_AVERAGE_FILTER_MOVING_AVERAGE_SIZE];
 
+//alpha for exponenetial filter 
+#define ALPHA_OIL_PRESSURE 0.5
+
 #define STEER_PERIOD_NORMAL 5
 #define STEER_PERIOD_ERR 15
 uint32_t steer_angle_period = STEER_PERIOD_NORMAL; //in ms
@@ -264,7 +267,7 @@ void sensor_handler(void* argument) {
     vTaskDelay(pdMS_TO_TICKS(500));
 #endif
 
-    /*initialize the pedal sensors' compensation*/
+    /*initialize the pedal sensors' compensation and initial value for oil sensor*/
     //calib the adc
     HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET_LINEARITY, ADC_SINGLE_ENDED);
     HAL_ADCEx_Calibration_Start(&hadc3, ADC_CALIB_OFFSET_LINEARITY, ADC_SINGLE_ENDED);
@@ -283,6 +286,7 @@ void sensor_handler(void* argument) {
     const float apps1_compensation = - APPS1_transfer_function(adc_dma_buffer.apps1, 0);
     const float apps2_compensation = - APPS2_transfer_function(adc_dma_buffer.apps2, 0);
     const float bse_compensation = -0.05;
+    float oil_filtered = oil_transfer_function(adc_dma_buffer.oil);
     
     //start the initial read, and start the timer that should later notifies this task to do stuff again
     xTaskNotify(xTaskGetCurrentTaskHandle(), FLAG_READ_SUS_PEDAL | FLAG_READ_TIRE_TEMP, eSetBits);
@@ -346,8 +350,7 @@ void sensor_handler(void* argument) {
                 }
             }
 
-        
-            //TODO: another error handler for implausibility
+            //DSP filtering for all pedals and oil pressure sensor
             float apps1_filtered, apps2_filtered, bse_filtered;
             MovingAverageFilter_update(&moving_average_filter[0], APPS1_transfer_function(adc_dma_buffer.apps1, apps1_compensation), &apps1_filtered);
             MovingAverageFilter_update(&moving_average_filter[1], APPS2_transfer_function(adc_dma_buffer.apps2, apps2_compensation), &apps2_filtered);
@@ -356,15 +359,17 @@ void sensor_handler(void* argument) {
             const float apps2 = fuzzy_edge_remover(apps2_filtered, 1.0, 0.0, 0.05);
             const float bse = fuzzy_edge_remover(bse_filtered, 1.0, 0.0, 0.01);
 
+            oil_filtered = exp_filter(oil_transfer_function(adc_dma_buffer.oil) , oil_filtered, ALPHA_OIL_PRESSURE);
+
+            //error reporting for APPS and BSE
+            //TODO: another error handler for implausibility
             Error_report(ERROR_CODE_APPS1_HIGH, &pedal_err_count.apps1.high, apps1 > 1.0 ? true : false);
             Error_report(ERROR_CODE_APPS1_LOW, &pedal_err_count.apps1.low, apps1 < 0.0 ? true : false);
             Error_report(ERROR_CODE_APPS2_HIGH, &pedal_err_count.apps2.high, apps2 > 1.0 ? true : false);
             Error_report(ERROR_CODE_APPS2_LOW, &pedal_err_count.apps2.low, apps2 < 0.0 ? true : false);
             Error_report(ERROR_CODE_APPS_DIVERGE, &pedal_err_count.apps_disagree, apps1-apps2 > 0.1 || apps2-apps1 > 0.1 ? true : false);
-            // Error_report(ERROR_CODE_BSE_HIGH, &pedal_err_count.bse.high, bse > 1.0 ? true : false);
-            // Error_report(ERROR_CODE_BSE_LOW, &pedal_err_count.bse.low, bse < 0.0 ? true : false);
-            Error_report(ERROR_CODE_BSE_LOW, &pedal_err_count.bse.low, fuzzy_edge_remover(oil_transfer_function(adc_dma_buffer.oil), 70.0, 0.0, 15) < 0.0 ? true : false);
-            Error_report(ERROR_CODE_BSE_HIGH, &pedal_err_count.bse.high, fuzzy_edge_remover(oil_transfer_function(adc_dma_buffer.oil), 70.0, 0.0, 5)  > 70.0 ? true : false);
+            Error_report(ERROR_CODE_BSE_LOW, &pedal_err_count.bse.low, fuzzy_edge_remover(oil_filtered, 70.0, 0.0, 15) < 0.0 ? true : false);
+            Error_report(ERROR_CODE_BSE_HIGH, &pedal_err_count.bse.high, fuzzy_edge_remover(oil_filtered, 70.0, 0.0, 5)  > 70.0 ? true : false);
             
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
                 pedal.apps1 = apps1;
@@ -378,7 +383,7 @@ void sensor_handler(void* argument) {
                 travel_strain_oil_sensor.left = travel_transfer_function(adc_dma_buffer.travel_l);
                 travel_strain_oil_sensor.right = travel_transfer_function(adc_dma_buffer.travel_r);
                 travel_strain_oil_sensor.strain = adc_dma_buffer.strain;
-                travel_strain_oil_sensor.oil_pressure = oil_transfer_function(adc_dma_buffer.oil);
+                travel_strain_oil_sensor.oil_pressure = fuzzy_edge_remover(oil_filtered, 70.0, 0.0, 15);
             xSemaphoreGive(travel_strain_oil_sensor.mutex);
         
         }
