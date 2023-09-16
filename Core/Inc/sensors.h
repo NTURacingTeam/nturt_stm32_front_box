@@ -12,7 +12,7 @@
 #define USE_HALL_SENSOR
 
 /*macro: freertos object parameter*/
-#define SENSOR_DATA_TASK_STACK_SIZE 256
+#define SENSOR_DATA_TASK_STACK_SIZE 384
 
 // freertos timer info
 #define SENSOR_TIMER_PERIOD 5 //in ms

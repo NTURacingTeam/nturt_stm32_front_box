@@ -513,12 +513,16 @@ void sensor_handler(void* argument) {
                     steer_angle_sensor.steering_angle = steer_angle_transfer_function((position & 0x3FFF) >> 2);
                 xSemaphoreGive(steer_angle_sensor.mutex);
                 
-                if(prevErr & ERROR_CODE_SPI) 
-                    ErrorHandler_write_error(&error_handler, ERROR_CODE_SPI, ERROR_CLEAR);
+                if(prevErr & ERROR_CODE_AMT22) {
+                    ErrorHandler_write_error(&error_handler, ERROR_CODE_AMT22, ERROR_CLEAR);
+                    steer_angle_period = STEER_PERIOD_NORMAL;
+                }
             }
             else {
-                if(!(prevErr & ERROR_CODE_SPI)) 
-                    ErrorHandler_write_error(&error_handler, ERROR_CODE_SPI, ERROR_SET);
+                if(!(prevErr & ERROR_CODE_AMT22)) {
+                    ErrorHandler_write_error(&error_handler, ERROR_CODE_AMT22, ERROR_SET);
+                    steer_angle_period = STEER_PERIOD_ERR;
+                }
             }
         }
     }

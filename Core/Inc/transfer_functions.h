@@ -76,7 +76,7 @@ static inline float wheel_speed_tranfser_function(const uint32_t elapsed, const 
  * @param alpha the alpha value of the exponenetial filter. higher the alpha, higher the cutoff frequency
  * @return float the current output signal of this filter upon the sensor of interest
  */
-static inline float exp_filter(const float x, const float y_last, const alpha) {
+static inline float exp_filter(const float x, const float y_last, const float alpha) {
   return alpha*y_last + (1-alpha)*x;
 }
 
