@@ -88,7 +88,7 @@ MovingAverageFilter moving_average_filter[NUM_FILTER];
 static float moving_average_buffer[NUM_FILTER] [MOVING_AVERAGE_FILTER_MOVING_AVERAGE_SIZE];
 
 //alpha for exponenetial filter 
-#define ALPHA_OIL_PRESSURE 0.5
+#define ALPHA_OIL_PRESSURE 0.7
 
 #define STEER_PERIOD_NORMAL 5
 #define STEER_PERIOD_ERR 15
@@ -217,6 +217,7 @@ void sensor_timer_callback(TimerHandle_t timer) {
     }
 }
 
+float oil = 0.0;
 
 /**
  * @brief handler function for the data acquisition task of the pedal sensors
@@ -377,6 +378,7 @@ void sensor_handler(void* argument) {
             const float bse = fuzzy_edge_remover(bse_filtered, 1.0, 0.0, 0.01);
 
             oil_filtered = exp_filter(oil_transfer_function(adc_dma_buffer.oil) , oil_filtered, ALPHA_OIL_PRESSURE);
+            oil = oil_transfer_function(adc_dma_buffer.oil);
 
             /*error reporting for APPS and BSE ---------------------------------------------------------------*/
             //TODO: another error handler for implausibility
