@@ -276,6 +276,9 @@ void sensor_handler(void* argument) {
     vTaskDelay(pdMS_TO_TICKS(500));
 #endif
 
+    HAL_SPI_TransmitReceive(&hspi4, spi_tx_buffer, spi_rx_buffer, 2,0x10);
+    const bool amt_err = AMT22_parity_check(((uint16_t)spi_rx_buffer[0] << 8) + spi_rx_buffer[1]);
+
     /*initialize the pedal sensors' compensation and initial value for oil sensor------------------------------------*/
     //calib the adc
     HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET_LINEARITY, ADC_SINGLE_ENDED);
@@ -382,13 +385,13 @@ void sensor_handler(void* argument) {
 
             /*error reporting for APPS and BSE ---------------------------------------------------------------*/
             //TODO: another error handler for implausibility
-            Error_report(ERROR_CODE_APPS1_HIGH, &pedal_err_count.apps1.high, apps1 > 1.0 ? true : false);
-            Error_report(ERROR_CODE_APPS1_LOW, &pedal_err_count.apps1.low, apps1 < 0.0 ? true : false);
-            Error_report(ERROR_CODE_APPS2_HIGH, &pedal_err_count.apps2.high, apps2 > 1.0 ? true : false);
-            Error_report(ERROR_CODE_APPS2_LOW, &pedal_err_count.apps2.low, apps2 < 0.0 ? true : false);
-            Error_report(ERROR_CODE_APPS_DIVERGE, &pedal_err_count.apps_disagree, apps1-apps2 > 0.1 || apps2-apps1 > 0.1 ? true : false);
-            Error_report(ERROR_CODE_BSE_LOW, &pedal_err_count.bse.low, fuzzy_edge_remover(oil_filtered, 70.0, 0.0, 15) < 0.0 ? true : false);
-            Error_report(ERROR_CODE_BSE_HIGH, &pedal_err_count.bse.high, fuzzy_edge_remover(oil_filtered, 70.0, 0.0, 5)  > 70.0 ? true : false);
+//            Error_report(ERROR_CODE_APPS1_HIGH, &pedal_err_count.apps1.high, apps1 > 1.0 ? true : false);
+//            Error_report(ERROR_CODE_APPS1_LOW, &pedal_err_count.apps1.low, apps1 < 0.0 ? true : false);
+//            Error_report(ERROR_CODE_APPS2_HIGH, &pedal_err_count.apps2.high, apps2 > 1.0 ? true : false);
+//            Error_report(ERROR_CODE_APPS2_LOW, &pedal_err_count.apps2.low, apps2 < 0.0 ? true : false);
+//            Error_report(ERROR_CODE_APPS_DIVERGE, &pedal_err_count.apps_disagree, apps1-apps2 > 0.1 || apps2-apps1 > 0.1 ? true : false);
+//            Error_report(ERROR_CODE_BSE_LOW, &pedal_err_count.bse.low, fuzzy_edge_remover(oil_filtered, 70.0, 0.0, 15) < 0.0 ? true : false);
+//            Error_report(ERROR_CODE_BSE_HIGH, &pedal_err_count.bse.high, fuzzy_edge_remover(oil_filtered, 70.0, 0.0, 5)  > 70.0 ? true : false);
             
             /*output the final values to global resources ----------------------------------------------------*/
             xSemaphoreTake(pedal.mutex, pdMS_TO_TICKS(MUTEX_TIMEOUT));
@@ -482,49 +485,52 @@ void sensor_handler(void* argument) {
         if(pending_notifications & FLAG_READ_STEER) {
             pending_notifications &= ~FLAG_READ_STEER; //clear flags
 
-            //see https://www.cuidevices.com/product/resource/amt22.pdf
-            //TODO: using hardware NSS right now because SCK jitters when NSS is switched by software for some reason
-            //but hardware NSS does not observe 3us after all bytes transmission
-            spi_tx_buffer[0] = 0;
-            spi_tx_buffer[1] = 0;
+            if(!amt_err) {
 
-            /*start the SPI transmission in IT mode and wait for it to finish --------------------------------------------*/
-            if(HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_buffer, spi_rx_buffer, 2) != HAL_OK) {
-                steer_angle_period = STEER_PERIOD_ERR;
-                break;
-            }
-            if(wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications) != pdTRUE) {
-                steer_angle_period = STEER_PERIOD_ERR;
-                break;
-            }
-            else {
-                steer_angle_period = STEER_PERIOD_NORMAL;
-            }
+				//see https://www.cuidevices.com/product/resource/amt22.pdf
+				//TODO: using hardware NSS right now because SCK jitters when NSS is switched by software for some reason
+				//but hardware NSS does not observe 3us after all bytes transmission
+				spi_tx_buffer[0] = 0;
+				spi_tx_buffer[1] = 0;
 
-            /*calculate position and put the stuff into variables ----------------------------------------------------*/
-            const uint8_t highByte = spi_rx_buffer[0];
-            const uint8_t lowByte = spi_rx_buffer[1];
-            const uint16_t position = ((uint16_t)highByte << 8) + (uint16_t)lowByte;
+				/*start the SPI transmission in IT mode and wait for it to finish --------------------------------------------*/
+				if(HAL_SPI_TransmitReceive_IT(&hspi4, spi_tx_buffer, spi_rx_buffer, 2) != HAL_OK) {
+					steer_angle_period = STEER_PERIOD_ERR;
+					break;
+				}
+				if(wait_for_notif_flags(FLAG_SPI4_FINISH, pdMS_TO_TICKS(SPI_TIMEOUT), &pending_notifications) != pdTRUE) {
+					steer_angle_period = STEER_PERIOD_ERR;
+					break;
+				}
+				else {
+					steer_angle_period = STEER_PERIOD_NORMAL;
+				}
 
-            uint32_t prevErr = 0;
-            ErrorHandler_get_error(&error_handler, &prevErr);
+				/*calculate position and put the stuff into variables ----------------------------------------------------*/
+				const uint8_t highByte = spi_rx_buffer[0];
+				const uint8_t lowByte = spi_rx_buffer[1];
+				const uint16_t position = ((uint16_t)highByte << 8) + (uint16_t)lowByte;
 
-            //calculate the parity of odd and even bits
-            if(AMT22_parity_check(position) == 0) {
-                xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
-                    steer_angle_sensor.steering_angle = steer_angle_transfer_function((position & 0x3FFF) >> 2);
-                xSemaphoreGive(steer_angle_sensor.mutex);
-                
-                if(prevErr & ERROR_CODE_AMT22) {
-                    ErrorHandler_write_error(&error_handler, ERROR_CODE_AMT22, ERROR_CLEAR);
-                    steer_angle_period = STEER_PERIOD_NORMAL;
-                }
-            }
-            else {
-                if(!(prevErr & ERROR_CODE_AMT22)) {
-                    ErrorHandler_write_error(&error_handler, ERROR_CODE_AMT22, ERROR_SET);
-                    steer_angle_period = STEER_PERIOD_ERR;
-                }
+				uint32_t prevErr = 0;
+				ErrorHandler_get_error(&error_handler, &prevErr);
+
+				//calculate the parity of odd and even bits
+				if(AMT22_parity_check(position) == 0) {
+					xSemaphoreTake(steer_angle_sensor.mutex, MUTEX_TIMEOUT);
+						steer_angle_sensor.steering_angle = steer_angle_transfer_function((position & 0x3FFF) >> 2);
+					xSemaphoreGive(steer_angle_sensor.mutex);
+
+					if(prevErr & ERROR_CODE_AMT22) {
+						ErrorHandler_write_error(&error_handler, ERROR_CODE_AMT22, ERROR_CLEAR);
+						steer_angle_period = STEER_PERIOD_NORMAL;
+					}
+				}
+				else {
+					if(!(prevErr & ERROR_CODE_AMT22)) {
+						ErrorHandler_write_error(&error_handler, ERROR_CODE_AMT22, ERROR_SET);
+						steer_angle_period = STEER_PERIOD_ERR;
+					}
+				}
             }
         }
     }
